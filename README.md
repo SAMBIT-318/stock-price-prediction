@@ -56,11 +56,15 @@ The notebook downloads AAPL data from Yahoo Finance through `yfinance`, prepares
 
 ## Dataset
 
-The project does not require a manually uploaded dataset. The notebook downloads AAPL historical data using `yfinance` and can save it locally as:
+## Dataset
+
+The project uses historical AAPL stock-market data.
+
+The dataset used for the project is available in:
 
 `data/stock_data.csv`
 
-Generated data is ignored by Git through `.gitignore`.
+The notebook can also retrieve historical AAPL data using `yfinance`.
 
 ## Model
 
