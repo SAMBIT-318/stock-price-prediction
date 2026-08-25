@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 from datetime import date, timedelta
 
-# Import Alpaca components
+# Import Alpaca components all at once
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, GetOrdersRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
@@ -24,6 +24,14 @@ st.markdown("""
 st.markdown('<div class="main-header">Nexus Trade Terminal</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Advanced Market Analytics & Alpaca Paper Trading</div>', unsafe_allow_html=True)
 
+# --- Check for Saved Secrets (Auto-Login) ---
+try:
+    saved_api_key = st.secrets["ALPACA_API_KEY"]
+    saved_secret_key = st.secrets["ALPACA_SECRET_KEY"]
+except:
+    saved_api_key = ""
+    saved_secret_key = ""
+
 # --- 2. SIDEBAR SEARCH & API KEYS ---
 with st.sidebar:
     st.header("🔍 Market Search")
@@ -33,8 +41,8 @@ with st.sidebar:
     
     st.header("🔑 Alpaca API Keys")
     st.caption("Keys entered here connect both your Portfolio and Trade Station.")
-    api_key = st.text_input("Alpaca API Key", type="password")
-    secret_key = st.text_input("Alpaca Secret Key", type="password")
+    api_key = st.text_input("Alpaca API Key", value=saved_api_key, type="password", key="sidebar_api")
+    secret_key = st.text_input("Alpaca Secret Key", value=saved_secret_key, type="password", key="sidebar_secret")
     
     st.divider()
     st.write("📈 **Market Indices**")
@@ -72,71 +80,6 @@ daily_pct = (daily_change / prev_close) * 100
 # --- 4. TERMINAL TABS ---
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Markets & AI", "💼 My Portfolio", "📰 News Feed", "⚡ Trade Station"])
 
-# --- TAB 4: TRADE STATION (ALPACA PAPER TRADING) ---
-with tab4:
-    st.subheader(f"⚡ Execute Order: {ticker}")
-    
-    t1, t2 = st.columns(2)
-    
-    with t1:
-        st.info(f"**Current Market Price:** ${last_close:.2f}")
-        action = st.radio("Action", ["Buy", "Sell"], horizontal=True)
-        quantity = st.number_input("Quantity (Shares)", min_value=0.01, value=1.0, step=1.0)
-        
-        st.write(f"**Estimated Order Value:** ${last_close * quantity:,.2f}")
-        
-        if st.button("Place Paper Trade via Alpaca"):
-            if not api_key or not secret_key:
-                st.error("⚠️ Please enter your Alpaca API keys in the sidebar.")
-            else:
-                with st.spinner("Processing order..."):
-                    try:
-                        trading_client = TradingClient(api_key, secret_key, paper=True)
-                        
-                        # --- 1. AUTO-CANCEL PENDING ORDERS FOR THIS TICKER ---
-                        from alpaca.trading.requests import GetOrdersRequest
-                        from alpaca.trading.enums import QueryOrderStatus
-                        
-                        # Find open orders for this specific stock
-                        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
-                        open_orders = trading_client.get_orders(filter=req)
-                        
-                        if open_orders:
-                            st.warning(f"Auto-canceling {len(open_orders)} pending order(s) for {ticker} to prevent wash-trade blocks...")
-                            for o in open_orders:
-                                trading_client.cancel_order_by_id(o.id)
-                        # -----------------------------------------------------
-                        
-                        # --- 2. SUBMIT THE NEW ORDER ---
-                        side = OrderSide.BUY if action == "Buy" else OrderSide.SELL
-                        
-                        market_order_data = MarketOrderRequest(
-                            symbol=ticker,
-                            qty=quantity,
-                            side=side,
-                            time_in_force=TimeInForce.DAY
-                        )
-                        
-                        order = trading_client.submit_order(order_data=market_order_data)
-                        st.success("✅ Order successfully routed to Alpaca!")
-                        st.write(f"**Order ID:** `{order.id}`")
-                        st.write(f"**Status:** `{order.status}`")
-                    except Exception as e:
-                        st.error(f"❌ Order Failed: {e}")
-                        
-    with t2:
-        st.write("### Quick Account Status")
-        if not api_key or not secret_key:
-            st.warning("Enter API keys in the sidebar to view status.")
-        else:
-            try:
-                client = TradingClient(api_key, secret_key, paper=True)
-                account = client.get_account()
-                st.metric("Total Equity", f"${float(account.equity):,.2f}")
-                st.metric("Buying Power", f"${float(account.buying_power):,.2f}")
-                st.metric("Cash", f"${float(account.cash):,.2f}")
-            except Exception:
-                st.error("Could not fetch account details.")
 # --- TAB 1: MARKETS & AI ---
 with tab1:
     col1, col2 = st.columns([3, 1])
@@ -254,7 +197,7 @@ with tab3:
     else:
         st.write("No recent news found for this asset.")
 
-# --- TAB 4: TRADE STATION (ALPACA PAPER TRADING) ---
+# --- TAB 4: TRADE STATION (WITH AUTO-CANCEL) ---
 with tab4:
     st.subheader(f"⚡ Execute Order: {ticker}")
     
@@ -262,20 +205,32 @@ with tab4:
     
     with t1:
         st.info(f"**Current Market Price:** ${last_close:.2f}")
-        action = st.radio("Action", ["Buy", "Sell"], horizontal=True)
-        quantity = st.number_input("Quantity (Shares)", min_value=0.01, value=1.0, step=1.0)
+        
+        # Added unique keys to prevent Duplicate ID errors
+        action = st.radio("Action", ["Buy", "Sell"], horizontal=True, key="trade_action_radio")
+        quantity = st.number_input("Quantity (Shares)", min_value=0.01, value=1.0, step=1.0, key="trade_qty_input")
         
         st.write(f"**Estimated Order Value:** ${last_close * quantity:,.2f}")
         
-        if st.button("Place Paper Trade via Alpaca"):
+        if st.button("Place Paper Trade via Alpaca", key="place_trade_btn"):
             if not api_key or not secret_key:
                 st.error("⚠️ Please enter your Alpaca API keys in the sidebar.")
             else:
-                with st.spinner("Transmitting order to Alpaca exchange..."):
+                with st.spinner("Processing order & checking wash-trade protections..."):
                     try:
                         trading_client = TradingClient(api_key, secret_key, paper=True)
-                        side = OrderSide.BUY if action == "Buy" else OrderSide.SELL
                         
+                        # --- AUTO-CANCEL OPEN ORDERS FOR THIS TICKER ---
+                        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
+                        open_orders = trading_client.get_orders(filter=req)
+                        
+                        if open_orders:
+                            st.warning(f"Auto-canceled {len(open_orders)} pending order(s) for {ticker} to allow new trade direction.")
+                            for o in open_orders:
+                                trading_client.cancel_order_by_id(o.id)
+                        
+                        # --- SUBMIT NEW ORDER ---
+                        side = OrderSide.BUY if action == "Buy" else OrderSide.SELL
                         market_order_data = MarketOrderRequest(
                             symbol=ticker,
                             qty=quantity,
