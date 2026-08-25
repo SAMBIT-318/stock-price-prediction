@@ -1,64 +1,110 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
+import numpy as np
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_absolute_error
 from datetime import date, timedelta
 
-# 1. Set up the Streamlit interface
-st.title("📈 Stock Price Prediction App")
-st.write("This app predicts the next trading day's closing price for Apple (AAPL) using a Random Forest Regressor.")
+# 1. Set up professional layout
+st.set_page_config(page_title="AI Stock Predictor", layout="wide")
+st.title("🚀 Advanced AI Stock Price Predictor")
+st.write("Predicts the next trading day's closing price using Machine Learning and Technical Indicators.")
 
-# 2. Fetch the data using yfinance
-@st.cache_data 
-def load_data(ticker):
-    start_date = date.today() - timedelta(days=365 * 5) # Get last 5 years of data
-    end_date = date.today()
-    data = yf.download(ticker, start=start_date, end=end_date)
+# 2. Sidebar for User Input
+st.sidebar.header("⚙️ Dashboard Settings")
+ticker = st.sidebar.text_input("Enter Stock Ticker:", "AAPL").upper()
+years = st.sidebar.slider("Years of Historical Data to Train:", 1, 10, 5)
+
+# 3. Fetch data dynamically
+@st.cache_data
+def load_data(ticker, years):
+    start_date = date.today() - timedelta(days=365 * years)
+    data = yf.download(ticker, start=start_date, end=date.today(), progress=False)
     
-    # FIX: Flatten the complex column headers caused by the new yfinance update
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
         
     data.reset_index(inplace=True)
     return data
 
-data_load_state = st.text('Loading data...')
-df = load_data('AAPL')
-data_load_state.text('Loading data... done!')
+data_load_state = st.text(f'Fetching live market data for {ticker}...')
+df = load_data(ticker, years)
+data_load_state.empty() # Clears the loading text once done
 
-# 3. Display raw data and charts
-st.subheader('Historical Closing Price')
-st.line_chart(df.set_index('Date')['Close'])
+# Safety check if user types an invalid ticker
+if df.empty:
+    st.error(f"No data found for '{ticker}'. Please enter a valid Yahoo Finance ticker.")
+    st.stop()
 
-st.subheader('Recent Raw Data')
-st.write(df.tail())
-
-# 4. Prepare data for the Random Forest model
-st.write("---")
-st.subheader("🤖 Model Training & Prediction")
-st.write("Training Random Forest model on historical data...")
-
-# Create a simple feature: using the previous day's close to predict today's close
+# 4. Feature Engineering (Making the model smarter)
+# Adding Simple Moving Averages (SMA) to help the model detect trends
+df['SMA_10'] = df['Close'].rolling(window=10).mean()
+df['SMA_50'] = df['Close'].rolling(window=50).mean()
 df['Prev_Close'] = df['Close'].shift(1)
-df_model = df.dropna() # Drop the first row which now has a NaN value
+df = df.dropna() # Remove early rows that don't have enough data for the 50-day average
 
-X = df_model[['Prev_Close']] # Features
-y = df_model['Close']        # Target variable
+# 5. Dashboard Layout - Top Charts
+col1, col2 = st.columns([2, 1]) # Make the chart column twice as wide as the data table
 
-# 5. Train the model
+with col1:
+    st.subheader(f"📈 {ticker} Price & Trendlines")
+    # Plotting Close price alongside our new Moving Averages
+    st.line_chart(df.set_index('Date')[['Close', 'SMA_10', 'SMA_50']])
+
+with col2:
+    st.subheader("📊 Recent Market Data")
+    st.dataframe(df[['Date', 'Close', 'SMA_10', 'SMA_50']].tail(8), hide_index=True)
+
+# 6. Prepare Machine Learning Model
+st.write("---")
+st.subheader("🤖 AI Prediction Engine")
+
+# Features the model will learn from
+features = ['Prev_Close', 'SMA_10', 'SMA_50']
+X = df[features]
+y = df['Close']
+
+# Train/Test Split (to calculate model accuracy)
+split_idx = int(len(df) * 0.8) # Train on first 80%, test on last 20%
+X_train, X_test = X[:split_idx], X[split_idx:]
+y_train, y_test = y[:split_idx], y[split_idx:]
+
+# Train the model
 model = RandomForestRegressor(n_estimators=100, random_state=42)
-model.fit(X, y)
+model.fit(X_train, y_train)
 
-# 6. Predict the next day
-last_available_price = float(df['Close'].iloc[-1])
+# Calculate model error
+predictions = model.predict(X_test)
+mae = mean_absolute_error(y_test, predictions)
 
-# Scikit-learn expects the prediction input to have the exact same column names as the training data
-input_df = pd.DataFrame({'Prev_Close': [last_available_price]})
-next_day_prediction = model.predict(input_df)
+# 7. Predict the NEXT day
+last_row = df.iloc[-1]
+input_df = pd.DataFrame({
+    'Prev_Close': [float(last_row['Close'])],
+    'SMA_10': [float(last_row['SMA_10'])],
+    'SMA_50': [float(last_row['SMA_50'])]
+})
 
-# 7. Display the result
-st.metric(
-    label="Predicted Next Day Closing Price (AAPL)", 
-    value=f"${next_day_prediction[0]:.2f}",
-    delta=f"{next_day_prediction[0] - last_available_price:.2f} from last close"
-)
+next_day_prediction = model.predict(input_df)[0]
+last_close = float(last_row['Close'])
+
+# 8. Display Final Results in nice columns
+metric1, metric2, metric3 = st.columns(3)
+
+with metric1:
+    st.metric(label=f"Current Close Price ({ticker})", value=f"${last_close:.2f}")
+    
+with metric2:
+    st.metric(
+        label="AI Predicted Next Close", 
+        value=f"${next_day_prediction:.2f}",
+        delta=f"${next_day_prediction - last_close:.2f} expected change"
+    )
+
+with metric3:
+    st.metric(
+        label="Model Error (MAE)", 
+        value=f"${mae:.2f}",
+        help="Mean Absolute Error: On average, the model's historical predictions were off by this dollar amount."
+    )
