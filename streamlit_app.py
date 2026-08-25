@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 from datetime import date, timedelta
 
-# Import Alpaca components globally
+# Import Alpaca components
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest
 from alpaca.trading.enums import OrderSide, TimeInForce
@@ -22,7 +22,15 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-header">Nexus Trade Terminal</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Advanced Market Analytics & Alpaca Paper Trading</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Advanced Market Analytics & Live Alpaca Paper Trading</div>', unsafe_allow_html=True)
+
+# --- Check for Saved Secrets ---
+try:
+    saved_api_key = st.secrets["ALPACA_API_KEY"]
+    saved_secret_key = st.secrets["ALPACA_SECRET_KEY"]
+except:
+    saved_api_key = ""
+    saved_secret_key = ""
 
 # --- 2. SIDEBAR SEARCH & API KEYS ---
 with st.sidebar:
@@ -31,10 +39,10 @@ with st.sidebar:
     
     st.divider()
     
-    # MOVED API KEYS HERE SO ALL TABS CAN USE THEM
     st.header("🔑 Alpaca API Keys")
-    api_key = st.text_input("Alpaca API Key", type="password")
-    secret_key = st.text_input("Alpaca Secret Key", type="password")
+    st.caption("Keys entered here securely power your Portfolio and Trade Station.")
+    api_key = st.text_input("Alpaca API Key", value=saved_api_key, type="password")
+    secret_key = st.text_input("Alpaca Secret Key", value=saved_secret_key, type="password")
     
     st.divider()
     st.write("📈 **Market Indices**")
@@ -109,10 +117,7 @@ with tab2:
         st.warning("⚠️ Please enter your Alpaca API Key and Secret Key in the sidebar to view your live portfolio.")
     else:
         try:
-            # Connect to Alpaca
             client = TradingClient(api_key, secret_key, paper=True)
-            
-            # Fetch Account Balance & Buying Power
             account = client.get_account()
             
             c1, c2, c3 = st.columns(3)
@@ -123,13 +128,11 @@ with tab2:
             st.divider()
             st.subheader("📊 Open Positions")
             
-            # Fetch Open Positions
             positions = client.get_all_positions()
             
             if not positions:
                 st.info("You currently have no open positions in your Alpaca account.")
             else:
-                # Convert positions into a Pandas DataFrame for a clean table
                 pos_data = []
                 for p in positions:
                     pos_data.append({
@@ -143,15 +146,9 @@ with tab2:
                     })
                 
                 df_pos = pd.DataFrame(pos_data)
-                
-                # Format the DataFrame to look professional
                 display_df = df_pos.style.format({
-                    'Shares': '{:.4f}', 
-                    'Avg Price': '${:.2f}',
-                    'Current Price': '${:.2f}',
-                    'Market Value': '${:.2f}',
-                    'P&L ($)': '${:.2f}',
-                    'P&L (%)': '{:.2f}%'
+                    'Shares': '{:.4f}', 'Avg Price': '${:.2f}', 'Current Price': '${:.2f}',
+                    'Market Value': '${:.2f}', 'P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
                 })
                 
                 st.dataframe(display_df, use_container_width=True, hide_index=True)
@@ -216,5 +213,5 @@ with tab4:
                 account = client.get_account()
                 st.metric("Total Equity", f"${float(account.equity):,.2f}")
                 st.metric("Buying Power", f"${float(account.buying_power):,.2f}")
-            except Exception as e:
+            except Exception:
                 st.error("Could not fetch account details.")
