@@ -44,9 +44,13 @@ y = df_model['Close']        # Target variable
 model = RandomForestRegressor(n_estimators=100, random_state=42)
 model.fit(X, y)
 
-# 6. Predict the next day
-last_available_price = df['Close'].iloc[-1]
-next_day_prediction = model.predict([[last_available_price]])
+# 6. Predict the next day (FIXED)
+# We must extract the scalar value using .item() or float() to ensure it's a standard number
+last_available_price = float(df['Close'].iloc[-1])
+
+# Scikit-learn expects the prediction input to have the exact same column names as the training data
+input_df = pd.DataFrame({'Prev_Close': [last_available_price]})
+next_day_prediction = model.predict(input_df)
 
 # 7. Display the result
 st.metric(
