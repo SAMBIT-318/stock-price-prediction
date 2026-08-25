@@ -267,14 +267,33 @@ with tab3:
                         'Shares': float(p.qty),
                         'Entry Price': float(p.avg_entry_price),
                         'Current Price': float(p.current_price),
+                        'Market Value': float(p.market_value),
                         'Unrealized P&L ($)': float(p.unrealized_pl),
                         'P&L (%)': float(p.unrealized_plpc) * 100
                     })
                 df_p = pd.DataFrame(pos_list)
                 st.dataframe(df_p.style.format({
                     'Shares': '{:.2f}', 'Entry Price': '${:.2f}', 'Current Price': '${:.2f}',
-                    'Unrealized P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
+                    'Market Value': '${:.2f}', 'Unrealized P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
                 }), use_container_width=True, hide_index=True)
+
+            st.divider()
+            st.subheader("📋 Order Execution Log")
+            order_req = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=8)
+            orders = client.get_orders(filter=order_req)
+            if orders:
+                ord_list = [{
+                    'Time': o.created_at.strftime('%Y-%m-%d %H:%M:%S') if o.created_at else 'N/A',
+                    'Symbol': o.symbol,
+                    'Side': str(o.side).split('.')[-1].upper(),
+                    'Qty': float(o.qty) if o.qty else 0.0,
+                    'Type': str(o.order_type).split('.')[-1].upper(),
+                    'Status': str(o.status).split('.')[-1].upper()
+                } for o in orders]
+                st.dataframe(pd.DataFrame(ord_list), use_container_width=True, hide_index=True)
+            else:
+                st.info("No recent orders found.")
+
         except Exception as e:
             st.error(f"❌ Account Connection Failed: {e}")
 
