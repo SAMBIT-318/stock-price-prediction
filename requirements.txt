@@ -7,3 +7,4 @@ scikit-learn
 jupyter
 notebook
 plotly
+alpaca-py
