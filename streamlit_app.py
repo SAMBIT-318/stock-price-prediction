@@ -73,6 +73,11 @@ with st.sidebar:
         
     timeframe = st.selectbox("Historical Lookback:", ["6mo", "1y", "2y", "5y"], index=2)
     
+    # NEW: Force Refresh Button for Day Traders
+    if st.button("🔄 Force Refresh Data"):
+        st.cache_data.clear()
+        st.rerun()
+    
     st.divider()
     st.header("🔑 Alpaca API Keys")
     sb_key = st.text_input("API Key ID", value=st.session_state["api_key"], type="password", key="sb_key")
@@ -249,6 +254,10 @@ with tab2:
             if not opt_df.empty:
                 display_cols = ['strike', 'lastPrice', 'bid', 'ask', 'volume', 'openInterest', 'impliedVolatility']
                 opt_view = opt_df[[c for c in display_cols if c in opt_df.columns]].copy()
+                
+                # --- SAFETY FIX: Fill missing data (NaN) with 0 so the formatter doesn't crash ---
+                opt_view.fillna(0, inplace=True)
+                
                 opt_view['impliedVolatility'] = opt_view['impliedVolatility'] * 100
                 
                 st.dataframe(
