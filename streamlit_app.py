@@ -343,6 +343,25 @@ with tab4:
                 st.metric("Total Equity", f"${float(account_meta.equity or 0.0):,.2f}")
                 st.metric("Available Buying Power", f"${float(account_meta.buying_power or 0.0):,.2f}")
                 st.metric("Cash Balance", f"${float(account_meta.cash or 0.0):,.2f}")
+                
+                # --- NEW ADDITION: Order History embedded directly into the Trade Station ---
+                st.divider()
+                st.write("### Recent Transactions")
+                order_req = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=10)
+                orders = client.get_orders(filter=order_req)
+                if orders:
+                    ord_list = [{
+                        'Time': o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else 'N/A',
+                        'Symbol': o.symbol,
+                        'Side': str(o.side).split('.')[-1].upper(),
+                        'Qty': float(o.qty) if o.qty else 0.0,
+                        'Status': str(o.status).split('.')[-1].upper()
+                    } for o in orders]
+                    st.dataframe(pd.DataFrame(ord_list), use_container_width=True, hide_index=True)
+                else:
+                    st.info("No recent transactions found.")
+                # -------------------------------------------------------------------------
+                
             except Exception:
                 st.warning("Could not sync live account data.")
         else:
