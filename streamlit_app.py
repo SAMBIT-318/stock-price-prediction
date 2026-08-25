@@ -26,14 +26,15 @@ st.markdown("""
 st.markdown('<div class="main-header">Nexus Pro | Global Markets Terminal ⚡</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">US & Indian Equities, Options Chain, Commodities, AI Analytics & Alpaca Execution</div>', unsafe_allow_html=True)
 
-# Session State for Alpaca Credentials
-if "api_key" not in st.session_state:
-    try:
-        st.session_state["api_key"] = st.secrets.get("ALPACA_API_KEY", "")
-        st.session_state["secret_key"] = st.secrets.get("ALPACA_SECRET_KEY", "")
-    except Exception:
-        st.session_state["api_key"] = ""
-        st.session_state["secret_key"] = ""
+# --- SECURE BACKGROUND AUTHENTICATION ---
+# The app will automatically pull your keys from Streamlit Cloud Secrets.
+# Visitors will not see these keys.
+try:
+    api_key = st.secrets["ALPACA_API_KEY"]
+    secret_key = st.secrets["ALPACA_SECRET_KEY"]
+except Exception:
+    api_key = ""
+    secret_key = ""
 
 # --- 2. SIDEBAR CONFIGURATION (GLOBAL ASSETS) ---
 with st.sidebar:
@@ -73,20 +74,19 @@ with st.sidebar:
         
     timeframe = st.selectbox("Historical Lookback:", ["6mo", "1y", "2y", "5y"], index=2)
     
-    # NEW: Force Refresh Button for Day Traders
     if st.button("🔄 Force Refresh Data"):
         st.cache_data.clear()
         st.rerun()
     
     st.divider()
-    st.header("🔑 Alpaca API Keys")
-    sb_key = st.text_input("API Key ID", value=st.session_state["api_key"], type="password", key="sb_key")
-    sb_sec = st.text_input("Secret Key", value=st.session_state["secret_key"], type="password", key="sb_sec")
-    if sb_key: st.session_state["api_key"] = sb_key
-    if sb_sec: st.session_state["secret_key"] = sb_sec
-
-api_key = st.session_state["api_key"]
-secret_key = st.session_state["secret_key"]
+    
+    # Show connection status to visitors instead of asking for keys
+    if api_key and secret_key:
+        st.success("🟢 Live Paper Trading Connected")
+        st.caption("You are testing on a shared public paper trading account.")
+    else:
+        st.error("🔴 Broker Disconnected")
+        st.caption("Developer: Please add ALPACA_API_KEY to Streamlit Secrets.")
 
 # --- 3. DATA FETCHING & TECHNICAL ENGINE ---
 @st.cache_data(show_spinner="Loading live market telemetry...")
@@ -325,7 +325,7 @@ with tab4:
     st.subheader("💼 Live Alpaca Portfolio Execution")
     
     if not api_key or not secret_key:
-        st.warning("⚠️ Enter your Alpaca API Credentials in the sidebar to load your portfolio.")
+        st.error("⚠️ Alpaca API Keys not detected. The developer needs to add them to Streamlit Cloud Secrets to enable public paper trading.")
     else:
         try:
             client = TradingClient(api_key, secret_key, paper=True)
@@ -409,7 +409,7 @@ with tab5:
         
         if st.button("🚀 Transmit Order to Alpaca"):
             if not api_key or not secret_key:
-                st.error("⚠️ Connect your API keys in the sidebar before routing orders.")
+                st.error("⚠️ Alpaca API Keys missing in Streamlit Cloud Secrets.")
             elif is_foreign:
                 st.error(f"❌ **Broker Rejection:** Alpaca (US Broker) does not support routing orders for Indian Equities, Global Indices, or Commodities like '{ticker}'. Please select a US stock (e.g., AAPL, TSLA) to execute trades.")
             else:
@@ -462,7 +462,7 @@ with tab5:
             except Exception:
                 st.warning("Could not sync live account data.")
         else:
-            st.warning("Connect API keys in sidebar to view live buying power.")
+            st.error("Broker connection inactive. Developer must configure API Secrets.")
 
 # ==========================================
 # TAB 6: ALGORITHMIC STRATEGY BACKTESTER & QUANT METRICS
