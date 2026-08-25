@@ -6,3 +6,4 @@ matplotlib
 scikit-learn
 jupyter
 notebook
+plotly
