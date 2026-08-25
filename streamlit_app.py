@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 from datetime import date, timedelta
 
-# Import Alpaca components all at once
+# Import Alpaca components
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, GetOrdersRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
@@ -24,15 +24,16 @@ st.markdown("""
 st.markdown('<div class="main-header">Nexus Trade Terminal</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Advanced Market Analytics & Alpaca Paper Trading</div>', unsafe_allow_html=True)
 
-# --- Check for Saved Secrets (Auto-Login) ---
-try:
-    saved_api_key = st.secrets["ALPACA_API_KEY"]
-    saved_secret_key = st.secrets["ALPACA_SECRET_KEY"]
-except:
-    saved_api_key = ""
-    saved_secret_key = ""
+# Initialize session state for keys if not already present
+if "api_key" not in st.session_state:
+    try:
+        st.session_state["api_key"] = st.secrets.get("ALPACA_API_KEY", "")
+        st.session_state["secret_key"] = st.secrets.get("ALPACA_SECRET_KEY", "")
+    except Exception:
+        st.session_state["api_key"] = ""
+        st.session_state["secret_key"] = ""
 
-# --- 2. SIDEBAR SEARCH & API KEYS ---
+# --- 2. SIDEBAR ---
 with st.sidebar:
     st.header("🔍 Market Search")
     ticker = st.text_input("Search Asset (e.g., AAPL, TSLA, MSFT):", "AAPL").upper()
@@ -40,14 +41,19 @@ with st.sidebar:
     st.divider()
     
     st.header("🔑 Alpaca API Keys")
-    st.caption("Keys entered here connect both your Portfolio and Trade Station.")
-    api_key = st.text_input("Alpaca API Key", value=saved_api_key, type="password", key="sidebar_api")
-    secret_key = st.text_input("Alpaca Secret Key", value=saved_secret_key, type="password", key="sidebar_secret")
+    sb_api = st.text_input("Alpaca API Key", value=st.session_state["api_key"], type="password", key="sb_key_input")
+    sb_sec = st.text_input("Alpaca Secret Key", value=st.session_state["secret_key"], type="password", key="sb_sec_input")
+    
+    if sb_api: st.session_state["api_key"] = sb_api
+    if sb_sec: st.session_state["secret_key"] = sb_sec
     
     st.divider()
     st.write("📈 **Market Indices**")
     st.metric("S&P 500", "5,420.12", "+1.2%")
     st.metric("NASDAQ", "17,133.50", "+1.5%")
+
+api_key = st.session_state["api_key"]
+secret_key = st.session_state["secret_key"]
 
 # --- 3. DATA FETCHING ---
 @st.cache_data(show_spinner="Connecting to live market feeds...")
@@ -109,18 +115,24 @@ with tab1:
         st.write(f"**AI Signal:** {trend}")
         st.write(f"**Projected Target:** ${pred:.2f}")
 
-# --- TAB 2: LIVE ALPACA PORTFOLIO & ORDERS ---
+# --- TAB 2: LIVE PORTFOLIO ---
 with tab2:
     st.subheader("💼 Live Alpaca Portfolio")
     
     if not api_key or not secret_key:
-        st.warning("⚠️ Please enter your Alpaca API Key and Secret Key in the sidebar to load your live portfolio.")
+        st.warning("⚠️ Enter your Alpaca API Keys to load live balances and holdings:")
+        k_col1, k_col2 = st.columns(2)
+        tab2_key = k_col1.text_input("Alpaca API Key", type="password", key="t2_key")
+        tab2_sec = k_col2.text_input("Alpaca Secret Key", type="password", key="t2_sec")
+        if st.button("Connect Account", key="t2_conn_btn"):
+            st.session_state["api_key"] = tab2_key
+            st.session_state["secret_key"] = tab2_sec
+            st.rerun()
     else:
         try:
             client = TradingClient(api_key, secret_key, paper=True)
             account = client.get_account()
             
-            # Balances & Power metrics
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Total Equity", f"${float(account.equity):,.2f}")
             c2.metric("Buying Power", f"${float(account.buying_power):,.2f}")
@@ -128,8 +140,6 @@ with tab2:
             c4.metric("Daytrade Power", f"${float(getattr(account, 'daytrading_buying_power', account.buying_power)):,.2f}")
             
             st.divider()
-            
-            # --- OPEN POSITIONS ---
             st.subheader("📊 Open Positions")
             positions = client.get_all_positions()
             
@@ -160,9 +170,7 @@ with tab2:
                 st.dataframe(formatted_pos, use_container_width=True, hide_index=True)
                 
             st.divider()
-            
-            # --- LIVE ORDERS TRACKER ---
-            st.subheader("📋 Recent & Open Orders")
+            st.subheader("📋 Recent Orders")
             order_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=10)
             orders = client.get_orders(filter=order_filter)
             
@@ -197,16 +205,26 @@ with tab3:
     else:
         st.write("No recent news found for this asset.")
 
-# --- TAB 4: TRADE STATION (WITH AUTO-CANCEL) ---
+# --- TAB 4: TRADE STATION (ALPACA PAPER TRADING) ---
 with tab4:
     st.subheader(f"⚡ Execute Order: {ticker}")
     
+    # If keys are missing, show input boxes right here on the main screen
+    if not api_key or not secret_key:
+        st.info("🔑 Enter your Alpaca API credentials below to enable live order placement:")
+        k1, k2 = st.columns(2)
+        direct_key = k1.text_input("Alpaca API Key (PK...)", type="password", key="direct_t4_key")
+        direct_sec = k2.text_input("Alpaca Secret Key", type="password", key="direct_t4_sec")
+        if st.button("Connect & Save Keys", key="t4_connect_btn"):
+            st.session_state["api_key"] = direct_key
+            st.session_state["secret_key"] = direct_sec
+            st.rerun()
+        st.divider()
+
     t1, t2 = st.columns(2)
     
     with t1:
         st.info(f"**Current Market Price:** ${last_close:.2f}")
-        
-        # Added unique keys to prevent Duplicate ID errors
         action = st.radio("Action", ["Buy", "Sell"], horizontal=True, key="trade_action_radio")
         quantity = st.number_input("Quantity (Shares)", min_value=0.01, value=1.0, step=1.0, key="trade_qty_input")
         
@@ -214,22 +232,20 @@ with tab4:
         
         if st.button("Place Paper Trade via Alpaca", key="place_trade_btn"):
             if not api_key or not secret_key:
-                st.error("⚠️ Please enter your Alpaca API keys in the sidebar.")
+                st.error("⚠️ Please connect your Alpaca API keys first.")
             else:
-                with st.spinner("Processing order & checking wash-trade protections..."):
+                with st.spinner("Processing order & clearing pending opposite orders..."):
                     try:
                         trading_client = TradingClient(api_key, secret_key, paper=True)
                         
-                        # --- AUTO-CANCEL OPEN ORDERS FOR THIS TICKER ---
+                        # Auto-cancel pending orders to prevent wash trade block
                         req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
                         open_orders = trading_client.get_orders(filter=req)
-                        
                         if open_orders:
-                            st.warning(f"Auto-canceled {len(open_orders)} pending order(s) for {ticker} to allow new trade direction.")
                             for o in open_orders:
                                 trading_client.cancel_order_by_id(o.id)
                         
-                        # --- SUBMIT NEW ORDER ---
+                        # Submit order
                         side = OrderSide.BUY if action == "Buy" else OrderSide.SELL
                         market_order_data = MarketOrderRequest(
                             symbol=ticker,
@@ -237,7 +253,6 @@ with tab4:
                             side=side,
                             time_in_force=TimeInForce.DAY
                         )
-                        
                         order = trading_client.submit_order(order_data=market_order_data)
                         st.success("✅ Order successfully routed to Alpaca!")
                         st.write(f"**Order ID:** `{order.id}`")
@@ -248,13 +263,13 @@ with tab4:
     with t2:
         st.write("### Quick Account Status")
         if not api_key or not secret_key:
-            st.warning("Enter API keys in the sidebar to view status.")
+            st.warning("Connect your keys to view live buying power.")
         else:
             try:
                 client = TradingClient(api_key, secret_key, paper=True)
                 account = client.get_account()
                 st.metric("Total Equity", f"${float(account.equity):,.2f}")
                 st.metric("Buying Power", f"${float(account.buying_power):,.2f}")
-                st.metric("Cash", f"${float(account.cash):,.2f}")
+                st.metric("Cash Balance", f"${float(account.cash):,.2f}")
             except Exception:
-                st.error("Could not fetch account details.")
+                st.error("Could not fetch live account details.")
