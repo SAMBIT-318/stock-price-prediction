@@ -229,10 +229,13 @@ with tab3:
             acc = client.get_account()
             
             p1, p2, p3, p4 = st.columns(4)
-            p1.metric("Total Equity", f"${float(acc.equity):,.2f}")
-            p2.metric("Buying Power", f"${float(acc.buying_power):,.2f}")
-            p3.metric("Cash Balance", f"${float(acc.cash):,.2f}")
-            p4.metric("Daytrade Power", f"${float(getattr(acc, 'daytrading_buying_power', acc.buying_power)):,.2f}")
+            p1.metric("Total Equity", f"${float(acc.equity or 0.0):,.2f}")
+            p2.metric("Buying Power", f"${float(acc.buying_power or 0.0):,.2f}")
+            p3.metric("Cash Balance", f"${float(acc.cash or 0.0):,.2f}")
+            
+            # --- FIX: Safely check for NoneType to prevent crash ---
+            dt_power = acc.daytrading_buying_power if acc.daytrading_buying_power is not None else acc.buying_power
+            p4.metric("Daytrade Power", f"${float(dt_power or 0.0):,.2f}")
             
             st.divider()
             st.subheader("📊 Open Positions")
@@ -337,9 +340,9 @@ with tab4:
             try:
                 client = TradingClient(api_key, secret_key, paper=True)
                 account_meta = client.get_account()
-                st.metric("Total Equity", f"${float(account_meta.equity):,.2f}")
-                st.metric("Available Buying Power", f"${float(account_meta.buying_power):,.2f}")
-                st.metric("Cash Balance", f"${float(account_meta.cash):,.2f}")
+                st.metric("Total Equity", f"${float(account_meta.equity or 0.0):,.2f}")
+                st.metric("Available Buying Power", f"${float(account_meta.buying_power or 0.0):,.2f}")
+                st.metric("Cash Balance", f"${float(account_meta.cash or 0.0):,.2f}")
             except Exception:
                 st.warning("Could not sync live account data.")
         else:
