@@ -91,12 +91,28 @@ def fetch_market_data(symbol, period_choice):
     except Exception:
         info = {}
         
+    # --- UPGRADED ROBUST NEWS ENGINE ---
+    news_extracted = []
     try:
-        news = stock.news[:6]
+        raw_news = stock.news[:8]  # Fetch top 8 live articles
+        for n in raw_news:
+            # Handle new Yahoo Finance nested structure
+            if 'content' in n:
+                c = n['content']
+                title = c.get('title', 'Headline Unavailable')
+                link = c.get('clickThroughUrl', c.get('canonicalUrl', {}).get('url', '#'))
+                publisher = c.get('provider', {}).get('displayName', 'Yahoo Finance')
+            # Handle traditional flat structure
+            else:
+                title = n.get('title', 'Headline Unavailable')
+                link = n.get('link', '#')
+                publisher = n.get('publisher', 'Yahoo Finance')
+                
+            news_extracted.append({'title': title, 'link': link, 'publisher': publisher})
     except Exception:
-        news = []
+        pass
         
-    return df, info, news
+    return df, info, news_extracted
 
 df, stock_info, news_data = fetch_market_data(ticker, timeframe)
 
@@ -193,27 +209,33 @@ with tab2:
     f8.metric("Profit Margin", f"{(stock_info.get('profitMargins', 0) or 0)*100:.2f}%")
     
     st.divider()
-    st.subheader("📰 NLP News Feed & Market Sentiment")
+    st.subheader("📰 Live Market News & AI Sentiment")
     
     if news_data:
-        bull_words = ['up', 'surge', 'gain', 'profit', 'high', 'beat', 'bull', 'growth', 'rally']
-        bear_words = ['down', 'drop', 'fall', 'loss', 'low', 'miss', 'bear', 'plunge', 'warn']
+        bull_words = ['up', 'surge', 'gain', 'profit', 'high', 'beat', 'bull', 'growth', 'rally', 'buy']
+        bear_words = ['down', 'drop', 'fall', 'loss', 'low', 'miss', 'bear', 'plunge', 'warn', 'sell']
         
         total_score = 0
         for item in news_data:
-            title = item.get('title', '')
+            title = item['title']
+            link = item['link']
+            publisher = item['publisher']
+            
+            # Simple AI NLP Scoring
             score = sum([1 for w in bull_words if w in title.lower()]) - sum([1 for w in bear_words if w in title.lower()])
             total_score += score
             
             sentiment_tag = "🟢 BULLISH" if score > 0 else "🔴 BEARISH" if score < 0 else "⚪ NEUTRAL"
-            st.markdown(f"**[{title}]({item.get('link', '#')})** — *{sentiment_tag}*")
-            st.caption(f"Publisher: {item.get('publisher', 'Financial Wire')}")
+            
+            # Display Real News
+            st.markdown(f"#### [{title}]({link})")
+            st.caption(f"Source: **{publisher}** | Analysis: {sentiment_tag}")
             st.write("---")
             
         sentiment_summary = "Bullish Momentum" if total_score > 0 else "Bearish Caution" if total_score < 0 else "Neutral Equilibrium"
-        st.info(f"🧠 **Aggregated AI News Sentiment:** {sentiment_summary}")
+        st.info(f"🧠 **Aggregated AI News Sentiment for {ticker}:** {sentiment_summary}")
     else:
-        st.write("No direct news items available for this ticker.")
+        st.write("No exact live news items could be routed for this ticker at this moment.")
 
 # ==========================================
 # TAB 3: LIVE ALPACA PORTFOLIO & BALANCES
@@ -233,7 +255,6 @@ with tab3:
             p2.metric("Buying Power", f"${float(acc.buying_power or 0.0):,.2f}")
             p3.metric("Cash Balance", f"${float(acc.cash or 0.0):,.2f}")
             
-            # --- FIX: Safely check for NoneType to prevent crash ---
             dt_power = acc.daytrading_buying_power if acc.daytrading_buying_power is not None else acc.buying_power
             p4.metric("Daytrade Power", f"${float(dt_power or 0.0):,.2f}")
             
@@ -308,7 +329,6 @@ with tab4:
                     try:
                         trading_client = TradingClient(api_key, secret_key, paper=True)
                         
-                        # Auto-Cancel pending conflicting orders
                         req_wash = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
                         open_pending = trading_client.get_orders(filter=req_wash)
                         if open_pending:
@@ -344,7 +364,6 @@ with tab4:
                 st.metric("Available Buying Power", f"${float(account_meta.buying_power or 0.0):,.2f}")
                 st.metric("Cash Balance", f"${float(account_meta.cash or 0.0):,.2f}")
                 
-                # --- NEW ADDITION: Order History embedded directly into the Trade Station ---
                 st.divider()
                 st.write("### Recent Transactions")
                 order_req = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=10)
@@ -360,7 +379,6 @@ with tab4:
                     st.dataframe(pd.DataFrame(ord_list), use_container_width=True, hide_index=True)
                 else:
                     st.info("No recent transactions found.")
-                # -------------------------------------------------------------------------
                 
             except Exception:
                 st.warning("Could not sync live account data.")
@@ -377,7 +395,6 @@ with tab5:
     b_df = df[['Date', 'Close', 'SMA_20', 'SMA_50']].dropna().copy()
     
     if len(b_df) > 50:
-        # Generate Signal: 1 when SMA 20 > SMA 50, else 0
         b_df['Signal'] = np.where(b_df['SMA_20'] > b_df['SMA_50'], 1, 0)
         b_df['Market_Return'] = b_df['Close'].pct_change()
         b_df['Strategy_Return'] = b_df['Signal'].shift(1) * b_df['Market_Return']
@@ -385,7 +402,6 @@ with tab5:
         b_df['Cum_Market'] = (1 + b_df['Market_Return']).cumprod() - 1
         b_df['Cum_Strategy'] = (1 + b_df['Strategy_Return']).cumprod() - 1
         
-        # Cumulative returns comparison chart
         b_fig = go.Figure()
         b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Strategy'] * 100, name='SMA Crossover Strategy', line=dict(color='#00d09c', width=2)))
         b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Market'] * 100, name='Buy & Hold Benchmark', line=dict(color='#888888', width=1.5, dash='dot')))
