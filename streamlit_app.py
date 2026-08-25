@@ -3,28 +3,30 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from sklearn.ensemble import RandomForestRegressor
 from datetime import date, timedelta
 
-# Import Alpaca components
+# Import Alpaca Components
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest, GetOrdersRequest
+from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, GetOrdersRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 
-# --- 1. PAGE SETUP & CSS ---
-st.set_page_config(page_title="Nexus Trade Terminal", layout="wide", initial_sidebar_state="expanded")
+# --- 1. PAGE SETUP & MODERN UI THEME ---
+st.set_page_config(page_title="Nexus Pro Terminal", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-    .main-header { font-size: 2.5rem; font-weight: 700; color: #00d09c; margin-bottom: 0px;}
-    .sub-header { font-size: 1rem; color: #888888; margin-bottom: 20px;}
+    .main-header { font-size: 2.3rem; font-weight: 800; color: #00d09c; letter-spacing: -0.5px; margin-bottom: 0px;}
+    .sub-header { font-size: 0.95rem; color: #9aa0a6; margin-bottom: 20px;}
+    .stat-box { background-color: #1e222d; padding: 12px; border-radius: 8px; border: 1px solid #2a2e39;}
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-header">Nexus Trade Terminal</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Advanced Market Analytics & Alpaca Paper Trading</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">Nexus Pro | Institutional Trade Terminal ⚡</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">Algorithmic Forecasting, Fundamentals, Strategy Backtesting & Alpaca Execution</div>', unsafe_allow_html=True)
 
-# Initialize session state for keys if not already present
+# Session State for Alpaca Credentials
 if "api_key" not in st.session_state:
     try:
         st.session_state["api_key"] = st.secrets.get("ALPACA_API_KEY", "")
@@ -33,243 +35,347 @@ if "api_key" not in st.session_state:
         st.session_state["api_key"] = ""
         st.session_state["secret_key"] = ""
 
-# --- 2. SIDEBAR ---
+# --- 2. SIDEBAR CONFIGURATION ---
 with st.sidebar:
-    st.header("🔍 Market Search")
-    ticker = st.text_input("Search Asset (e.g., AAPL, TSLA, MSFT):", "AAPL").upper()
+    st.header("⚡ Watchlist & Ticker")
+    popular_stocks = ["AAPL", "NVDA", "TSLA", "MSFT", "GOOGL", "AMZN", "META", "AMD"]
+    selected_quick = st.selectbox("Quick Select:", ["Custom"] + popular_stocks)
+    
+    if selected_quick == "Custom":
+        ticker = st.text_input("Asset Ticker:", "AAPL").upper()
+    else:
+        ticker = selected_quick
+        
+    timeframe = st.selectbox("Historical Lookback:", ["6mo", "1y", "2y", "5y"], index=2)
     
     st.divider()
-    
     st.header("🔑 Alpaca API Keys")
-    sb_api = st.text_input("Alpaca API Key", value=st.session_state["api_key"], type="password", key="sb_key_input")
-    sb_sec = st.text_input("Alpaca Secret Key", value=st.session_state["secret_key"], type="password", key="sb_sec_input")
-    
-    if sb_api: st.session_state["api_key"] = sb_api
+    sb_key = st.text_input("API Key ID", value=st.session_state["api_key"], type="password", key="sb_key")
+    sb_sec = st.text_input("Secret Key", value=st.session_state["secret_key"], type="password", key="sb_sec")
+    if sb_key: st.session_state["api_key"] = sb_key
     if sb_sec: st.session_state["secret_key"] = sb_sec
-    
-    st.divider()
-    st.write("📈 **Market Indices**")
-    st.metric("S&P 500", "5,420.12", "+1.2%")
-    st.metric("NASDAQ", "17,133.50", "+1.5%")
 
 api_key = st.session_state["api_key"]
 secret_key = st.session_state["secret_key"]
 
-# --- 3. DATA FETCHING ---
-@st.cache_data(show_spinner="Connecting to live market feeds...")
-def load_data(ticker):
-    stock = yf.Ticker(ticker)
-    df = stock.history(period="2y")
+# --- 3. DATA FETCHING & TECHNICAL ENGINE ---
+@st.cache_data(show_spinner="Loading live market telemetry...")
+def fetch_market_data(symbol, period_choice):
+    stock = yf.Ticker(symbol)
+    df = stock.history(period=period_choice)
     if isinstance(df.columns, pd.MultiIndex):
-        data_cols = df.columns.get_level_values(0)
-        df.columns = data_cols
+        df.columns = df.columns.get_level_values(0)
     df.reset_index(inplace=True)
     
+    # Calculate Technical Overlays
+    if not df.empty:
+        df['SMA_20'] = df['Close'].rolling(window=20).mean()
+        df['SMA_50'] = df['Close'].rolling(window=50).mean()
+        df['EMA_200'] = df['Close'].ewm(span=200, adjust=False).mean()
+        
+        # Bollinger Bands
+        df['BB_Mid'] = df['Close'].rolling(window=20).mean()
+        df['BB_Std'] = df['Close'].rolling(window=20).std()
+        df['BB_Upper'] = df['BB_Mid'] + (df['BB_Std'] * 2)
+        df['BB_Lower'] = df['BB_Mid'] - (df['BB_Std'] * 2)
+        
+        # RSI
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        df['RSI'] = 100 - (100 / (1 + rs))
+        
     try:
-        news = stock.news[:5]
+        info = stock.info
+    except Exception:
+        info = {}
+        
+    try:
+        news = stock.news[:6]
     except Exception:
         news = []
         
-    return df, news
+    return df, info, news
 
-df, news_data = load_data(ticker)
+df, stock_info, news_data = fetch_market_data(ticker, timeframe)
 
 if df.empty:
-    st.error("Asset not found. Please try a different ticker.")
+    st.error(f"⚠️ Market data unavailable for '{ticker}'. Please verify the symbol.")
     st.stop()
 
-last_close = df['Close'].iloc[-1]
-prev_close = df['Close'].iloc[-2]
-daily_change = last_close - prev_close
-daily_pct = (daily_change / prev_close) * 100
+last_close = float(df['Close'].iloc[-1])
+prev_close = float(df['Close'].iloc[-2])
+change_val = last_close - prev_close
+change_pct = (change_val / prev_close) * 100
 
-# --- 4. TERMINAL TABS ---
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Markets & AI", "💼 My Portfolio", "📰 News Feed", "⚡ Trade Station"])
+# --- 4. TERMINAL NAVIGATION TABS ---
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📈 Interactive Analytics", 
+    "🏢 Valuation & Fundamentals", 
+    "💼 Live Portfolio", 
+    "⚡ Trade Station",
+    "🧪 Strategy Backtester"
+])
 
-# --- TAB 1: MARKETS & AI ---
+# ==========================================
+# TAB 1: ADVANCED CHARTING & AI PREDICTOR
+# ==========================================
 with tab1:
-    col1, col2 = st.columns([3, 1])
+    col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
+    col_metric1.metric("Spot Price", f"${last_close:.2f}", f"{change_val:+.2f} ({change_pct:+.2f}%)")
+    col_metric2.metric("Day High", f"${df['High'].iloc[-1]:.2f}")
+    col_metric3.metric("Day Low", f"${df['Low'].iloc[-1]:.2f}")
+    col_metric4.metric("Trading Volume", f"{int(df['Volume'].iloc[-1]):,}")
     
-    with col1:
-        st.subheader(f"{ticker} Price Chart")
-        fig = go.Figure(data=[go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price')])
-        fig.update_layout(template="plotly_dark", height=500, margin=dict(l=0, r=0, t=30, b=0), xaxis_rangeslider_visible=False)
-        st.plotly_chart(fig, use_container_width=True)
+    st.divider()
+    
+    # Advanced Dual-Pane Plotly Chart (Candles + Volume)
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.75, 0.25])
+    
+    # Price Candlestick
+    fig.add_trace(go.Candlestick(
+        x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'
+    ), row=1, col=1)
+    
+    # Overlays
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], line=dict(color='#ffa726', width=1.2), name='SMA 20'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], line=dict(color='#29b6f6', width=1.2), name='SMA 50'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Upper'], line=dict(color='rgba(255,255,255,0.2)', width=1), name='BB Upper'), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Lower'], line=dict(color='rgba(255,255,255,0.2)', width=1), fill='tonexty', fillcolor='rgba(255,255,255,0.03)', name='BB Lower'), row=1, col=1)
+    
+    # Volume Bar Chart
+    colors = ['#00d09c' if c >= o else '#ff5050' for c, o in zip(df['Close'], df['Open'])]
+    fig.add_trace(go.Bar(x=df['Date'], y=df['Volume'], marker_color=colors, name='Volume', showlegend=False), row=2, col=1)
+    
+    fig.update_layout(template="plotly_dark", height=580, margin=dict(l=0, r=0, t=10, b=0), xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Machine Learning Quick Forecast
+    st.subheader("🤖 Neural Price Target & Machine Learning Signal")
+    ml_df = df[['Close', 'SMA_20', 'SMA_50', 'RSI']].dropna().copy()
+    ml_df['Target'] = ml_df['Close'].shift(-1)
+    ml_features = ml_df.dropna()
+    
+    if len(ml_features) > 20:
+        X = ml_features[['Close', 'SMA_20', 'SMA_50', 'RSI']]
+        y = ml_features['Target']
+        rf = RandomForestRegressor(n_estimators=100, random_state=42)
+        rf.fit(X[:-1], y[:-1])
         
-    with col2:
-        st.subheader("Market Snapshot")
-        st.metric(f"{ticker} Current", f"${last_close:.2f}", f"{daily_change:.2f} ({daily_pct:.2f}%)")
-        st.write(f"**Day High:** ${df['High'].iloc[-1]:.2f}")
-        st.write(f"**Day Low:** ${df['Low'].iloc[-1]:.2f}")
-        st.write(f"**Volume:** {df['Volume'].iloc[-1]:,}")
+        last_features = np.array([[last_close, df['SMA_20'].iloc[-1], df['SMA_50'].iloc[-1], df['RSI'].iloc[-1]]])
+        predicted_target = rf.predict(last_features)[0]
         
-        st.divider()
-        st.subheader("🤖 AI Forecast")
-        df['Prev_Close'] = df['Close'].shift(1)
-        df_ml = df.dropna()
-        model = RandomForestRegressor(n_estimators=50, random_state=42)
-        model.fit(df_ml[['Prev_Close']], df_ml['Close'])
-        pred = model.predict([[last_close]])[0]
-        
-        trend = "Bullish 🟢" if pred > last_close else "Bearish 🔴"
-        st.write(f"**AI Signal:** {trend}")
-        st.write(f"**Projected Target:** ${pred:.2f}")
+        c_ai1, c_ai2 = st.columns([1, 2])
+        c_ai1.metric("Predicted Next Session Target", f"${predicted_target:.2f}", f"${predicted_target - last_close:+.2f}")
+        c_ai2.info(
+            f"**Model Signal:** {'BULLISH ACCUMULATION 🟢' if predicted_target > last_close else 'BEARISH DISTRIBUTION 🔴'}. "
+            f"Current RSI is **{df['RSI'].iloc[-1]:.1f}**. "
+            f"Asset is trading {'Above' if last_close > df['SMA_50'].iloc[-1] else 'Below'} the 50-day moving average."
+        )
 
-# --- TAB 2: LIVE PORTFOLIO ---
+# ==========================================
+# TAB 2: VALUATION & FUNDAMENTAL TELEMETRY
+# ==========================================
 with tab2:
-    st.subheader("💼 Live Alpaca Portfolio")
+    st.subheader(f"🏢 Fundamental Breakdown: {ticker}")
+    
+    f1, f2, f3, f4 = st.columns(4)
+    f1.metric("Market Capitalization", f"${stock_info.get('marketCap', 0):,}")
+    f2.metric("Trailing P/E Ratio", f"{stock_info.get('trailingPE', 'N/A')}")
+    f3.metric("Forward P/E Ratio", f"{stock_info.get('forwardPE', 'N/A')}")
+    f4.metric("Beta (Volatility)", f"{stock_info.get('beta', 'N/A')}")
+    
+    f5, f6, f7, f8 = st.columns(4)
+    f5.metric("52-Week High", f"${stock_info.get('fiftyTwoWeekHigh', 'N/A')}")
+    f6.metric("52-Week Low", f"${stock_info.get('fiftyTwoWeekLow', 'N/A')}")
+    f7.metric("Dividend Yield", f"{(stock_info.get('dividendYield', 0) or 0)*100:.2f}%")
+    f8.metric("Profit Margin", f"{(stock_info.get('profitMargins', 0) or 0)*100:.2f}%")
+    
+    st.divider()
+    st.subheader("📰 NLP News Feed & Market Sentiment")
+    
+    if news_data:
+        bull_words = ['up', 'surge', 'gain', 'profit', 'high', 'beat', 'bull', 'growth', 'rally']
+        bear_words = ['down', 'drop', 'fall', 'loss', 'low', 'miss', 'bear', 'plunge', 'warn']
+        
+        total_score = 0
+        for item in news_data:
+            title = item.get('title', '')
+            score = sum([1 for w in bull_words if w in title.lower()]) - sum([1 for w in bear_words if w in title.lower()])
+            total_score += score
+            
+            sentiment_tag = "🟢 BULLISH" if score > 0 else "🔴 BEARISH" if score < 0 else "⚪ NEUTRAL"
+            st.markdown(f"**[{title}]({item.get('link', '#')})** — *{sentiment_tag}*")
+            st.caption(f"Publisher: {item.get('publisher', 'Financial Wire')}")
+            st.write("---")
+            
+        sentiment_summary = "Bullish Momentum" if total_score > 0 else "Bearish Caution" if total_score < 0 else "Neutral Equilibrium"
+        st.info(f"🧠 **Aggregated AI News Sentiment:** {sentiment_summary}")
+    else:
+        st.write("No direct news items available for this ticker.")
+
+# ==========================================
+# TAB 3: LIVE ALPACA PORTFOLIO & BALANCES
+# ==========================================
+with tab3:
+    st.subheader("💼 Live Alpaca Portfolio Execution")
     
     if not api_key or not secret_key:
-        st.warning("⚠️ Enter your Alpaca API Keys to load live balances and holdings:")
-        k_col1, k_col2 = st.columns(2)
-        tab2_key = k_col1.text_input("Alpaca API Key", type="password", key="t2_key")
-        tab2_sec = k_col2.text_input("Alpaca Secret Key", type="password", key="t2_sec")
-        if st.button("Connect Account", key="t2_conn_btn"):
-            st.session_state["api_key"] = tab2_key
-            st.session_state["secret_key"] = tab2_sec
-            st.rerun()
+        st.warning("⚠️ Enter your Alpaca API Credentials in the sidebar to load your portfolio.")
     else:
         try:
             client = TradingClient(api_key, secret_key, paper=True)
-            account = client.get_account()
+            acc = client.get_account()
             
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Total Equity", f"${float(account.equity):,.2f}")
-            c2.metric("Buying Power", f"${float(account.buying_power):,.2f}")
-            c3.metric("Cash Balance", f"${float(account.cash):,.2f}")
-            c4.metric("Daytrade Power", f"${float(getattr(account, 'daytrading_buying_power', account.buying_power)):,.2f}")
+            p1, p2, p3, p4 = st.columns(4)
+            p1.metric("Total Equity", f"${float(acc.equity):,.2f}")
+            p2.metric("Buying Power", f"${float(acc.buying_power):,.2f}")
+            p3.metric("Cash Balance", f"${float(acc.cash):,.2f}")
+            p4.metric("Daytrade Power", f"${float(getattr(acc, 'daytrading_buying_power', acc.buying_power)):,.2f}")
             
             st.divider()
             st.subheader("📊 Open Positions")
             positions = client.get_all_positions()
             
             if not positions:
-                st.info("No open positions found in this Alpaca account.")
+                st.info("No active open positions in this account.")
             else:
-                pos_data = []
+                pos_list = []
                 for p in positions:
-                    pos_data.append({
+                    pos_list.append({
                         'Asset': p.symbol,
                         'Shares': float(p.qty),
-                        'Avg Entry Price': float(p.avg_entry_price),
+                        'Entry Price': float(p.avg_entry_price),
                         'Current Price': float(p.current_price),
                         'Market Value': float(p.market_value),
                         'Unrealized P&L ($)': float(p.unrealized_pl),
                         'P&L (%)': float(p.unrealized_plpc) * 100
                     })
-                
-                df_pos = pd.DataFrame(pos_data)
-                formatted_pos = df_pos.style.format({
-                    'Shares': '{:.4f}',
-                    'Avg Entry Price': '${:.2f}',
-                    'Current Price': '${:.2f}',
-                    'Market Value': '${:.2f}',
-                    'Unrealized P&L ($)': '${:.2f}',
-                    'P&L (%)': '{:.2f}%'
-                })
-                st.dataframe(formatted_pos, use_container_width=True, hide_index=True)
+                df_p = pd.DataFrame(pos_list)
+                st.dataframe(df_p.style.format({
+                    'Shares': '{:.2f}', 'Entry Price': '${:.2f}', 'Current Price': '${:.2f}',
+                    'Market Value': '${:.2f}', 'Unrealized P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
+                }), use_container_width=True, hide_index=True)
                 
             st.divider()
-            st.subheader("📋 Recent Orders")
-            order_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=10)
-            orders = client.get_orders(filter=order_filter)
-            
-            if not orders:
-                st.info("No recent orders found.")
-            else:
-                orders_data = []
-                for o in orders:
-                    orders_data.append({
-                        'Created At': o.created_at.strftime('%Y-%m-%d %H:%M:%S') if o.created_at else 'N/A',
-                        'Asset': o.symbol,
-                        'Side': str(o.side).split('.')[-1].upper(),
-                        'Qty': float(o.qty) if o.qty else 0.0,
-                        'Filled Qty': float(o.filled_qty) if o.filled_qty else 0.0,
-                        'Type': str(o.order_type).split('.')[-1].upper(),
-                        'Status': str(o.status).split('.')[-1].upper()
-                    })
-                df_orders = pd.DataFrame(orders_data)
-                st.dataframe(df_orders, use_container_width=True, hide_index=True)
-                
+            st.subheader("📋 Order Execution Log")
+            order_req = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=8)
+            orders = client.get_orders(filter=order_req)
+            if orders:
+                ord_list = [{
+                    'Time': o.created_at.strftime('%Y-%m-%d %H:%M:%S') if o.created_at else 'N/A',
+                    'Symbol': o.symbol,
+                    'Side': str(o.side).split('.')[-1].upper(),
+                    'Qty': float(o.qty) if o.qty else 0.0,
+                    'Type': str(o.order_type).split('.')[-1].upper(),
+                    'Status': str(o.status).split('.')[-1].upper()
+                } for o in orders]
+                st.dataframe(pd.DataFrame(ord_list), use_container_width=True, hide_index=True)
         except Exception as e:
-            st.error(f"❌ Error fetching Alpaca account data: {e}")
+            st.error(f"❌ Account Connection Failed: {e}")
 
-# --- TAB 3: NEWS FEED ---
-with tab3:
-    st.subheader(f"📰 Latest News for {ticker}")
-    if news_data:
-        for article in news_data:
-            st.markdown(f"**[{article.get('title', 'Headline Unavailable')}]({article.get('link', '#')})**")
-            st.caption(f"Published by: {article.get('publisher', 'Unknown')}")
-            st.write("---")
-    else:
-        st.write("No recent news found for this asset.")
-
-# --- TAB 4: TRADE STATION (ALPACA PAPER TRADING) ---
+# ==========================================
+# TAB 4: ADVANCED TRADE STATION
+# ==========================================
 with tab4:
-    st.subheader(f"⚡ Execute Order: {ticker}")
+    st.subheader(f"⚡ Execution Desk: {ticker}")
+    t_col1, t_col2 = st.columns(2)
     
-    # If keys are missing, show input boxes right here on the main screen
-    if not api_key or not secret_key:
-        st.info("🔑 Enter your Alpaca API credentials below to enable live order placement:")
-        k1, k2 = st.columns(2)
-        direct_key = k1.text_input("Alpaca API Key (PK...)", type="password", key="direct_t4_key")
-        direct_sec = k2.text_input("Alpaca Secret Key", type="password", key="direct_t4_sec")
-        if st.button("Connect & Save Keys", key="t4_connect_btn"):
-            st.session_state["api_key"] = direct_key
-            st.session_state["secret_key"] = direct_sec
-            st.rerun()
-        st.divider()
-
-    t1, t2 = st.columns(2)
-    
-    with t1:
-        st.info(f"**Current Market Price:** ${last_close:.2f}")
-        action = st.radio("Action", ["Buy", "Sell"], horizontal=True, key="trade_action_radio")
-        quantity = st.number_input("Quantity (Shares)", min_value=0.01, value=1.0, step=1.0, key="trade_qty_input")
+    with t_col1:
+        st.info(f"**Live Exchange Quote:** ${last_close:.2f}")
+        order_style = st.selectbox("Order Routing Type", ["Market Order", "Limit Order"])
+        order_side = st.radio("Side", ["Buy", "Sell"], horizontal=True)
+        order_qty = st.number_input("Shares Quantity", min_value=0.01, value=1.0, step=1.0)
         
-        st.write(f"**Estimated Order Value:** ${last_close * quantity:,.2f}")
+        limit_px = None
+        if order_style == "Limit Order":
+            limit_px = st.number_input("Limit Execution Price ($)", min_value=0.01, value=float(last_close), step=0.5)
+            est_value = limit_px * order_qty
+        else:
+            est_value = last_close * order_qty
+            
+        st.write(f"**Gross Order Notional:** ${est_value:,.2f}")
         
-        if st.button("Place Paper Trade via Alpaca", key="place_trade_btn"):
+        if st.button("🚀 Transmit Order to Alpaca"):
             if not api_key or not secret_key:
-                st.error("⚠️ Please connect your Alpaca API keys first.")
+                st.error("⚠️ Connect your API keys in the sidebar before routing orders.")
             else:
-                with st.spinner("Processing order & clearing pending opposite orders..."):
+                with st.spinner("Executing order routing..."):
                     try:
                         trading_client = TradingClient(api_key, secret_key, paper=True)
                         
-                        # Auto-cancel pending orders to prevent wash trade block
-                        req = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
-                        open_orders = trading_client.get_orders(filter=req)
-                        if open_orders:
-                            for o in open_orders:
+                        # Auto-Cancel pending conflicting orders
+                        req_wash = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
+                        open_pending = trading_client.get_orders(filter=req_wash)
+                        if open_pending:
+                            for o in open_pending:
                                 trading_client.cancel_order_by_id(o.id)
                         
-                        # Submit order
-                        side = OrderSide.BUY if action == "Buy" else OrderSide.SELL
-                        market_order_data = MarketOrderRequest(
-                            symbol=ticker,
-                            qty=quantity,
-                            side=side,
-                            time_in_force=TimeInForce.DAY
-                        )
-                        order = trading_client.submit_order(order_data=market_order_data)
-                        st.success("✅ Order successfully routed to Alpaca!")
-                        st.write(f"**Order ID:** `{order.id}`")
-                        st.write(f"**Status:** `{order.status}`")
-                    except Exception as e:
-                        st.error(f"❌ Order Failed: {e}")
+                        side_choice = OrderSide.BUY if order_side == "Buy" else OrderSide.SELL
                         
-    with t2:
-        st.write("### Quick Account Status")
-        if not api_key or not secret_key:
-            st.warning("Connect your keys to view live buying power.")
-        else:
+                        if order_style == "Limit Order":
+                            order_payload = LimitOrderRequest(
+                                symbol=ticker, qty=order_qty, side=side_choice,
+                                time_in_force=TimeInForce.DAY, limit_price=limit_px
+                            )
+                        else:
+                            order_payload = MarketOrderRequest(
+                                symbol=ticker, qty=order_qty, side=side_choice,
+                                time_in_force=TimeInForce.DAY
+                            )
+                            
+                        submitted = trading_client.submit_order(order_data=order_payload)
+                        st.success("✅ Order Transmitted Successfully!")
+                        st.write(f"**Alpaca Order ID:** `{submitted.id}` | **Status:** `{submitted.status}`")
+                    except Exception as e:
+                        st.error(f"❌ Routing Rejected: {e}")
+
+    with t_col2:
+        st.write("### Account Liquidity Snapshot")
+        if api_key and secret_key:
             try:
                 client = TradingClient(api_key, secret_key, paper=True)
-                account = client.get_account()
-                st.metric("Total Equity", f"${float(account.equity):,.2f}")
-                st.metric("Buying Power", f"${float(account.buying_power):,.2f}")
-                st.metric("Cash Balance", f"${float(account.cash):,.2f}")
+                account_meta = client.get_account()
+                st.metric("Total Equity", f"${float(account_meta.equity):,.2f}")
+                st.metric("Available Buying Power", f"${float(account_meta.buying_power):,.2f}")
+                st.metric("Cash Balance", f"${float(account_meta.cash):,.2f}")
             except Exception:
-                st.error("Could not fetch live account details.")
+                st.warning("Could not sync live account data.")
+        else:
+            st.warning("Connect API keys in sidebar to view live buying power.")
+
+# ==========================================
+# TAB 5: ALGORITHMIC STRATEGY BACKTESTER
+# ==========================================
+with tab5:
+    st.subheader(f"🧪 Algorithmic Strategy Simulator: {ticker}")
+    st.write("Test a **Moving Average Crossover Strategy** (SMA 20 vs SMA 50) against simple Buy & Hold.")
+    
+    b_df = df[['Date', 'Close', 'SMA_20', 'SMA_50']].dropna().copy()
+    
+    if len(b_df) > 50:
+        # Generate Signal: 1 when SMA 20 > SMA 50, else 0
+        b_df['Signal'] = np.where(b_df['SMA_20'] > b_df['SMA_50'], 1, 0)
+        b_df['Market_Return'] = b_df['Close'].pct_change()
+        b_df['Strategy_Return'] = b_df['Signal'].shift(1) * b_df['Market_Return']
+        
+        b_df['Cum_Market'] = (1 + b_df['Market_Return']).cumprod() - 1
+        b_df['Cum_Strategy'] = (1 + b_df['Strategy_Return']).cumprod() - 1
+        
+        # Cumulative returns comparison chart
+        b_fig = go.Figure()
+        b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Strategy'] * 100, name='SMA Crossover Strategy', line=dict(color='#00d09c', width=2)))
+        b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Market'] * 100, name='Buy & Hold Benchmark', line=dict(color='#888888', width=1.5, dash='dot')))
+        b_fig.update_layout(template="plotly_dark", height=420, yaxis_title="Cumulative Return (%)", margin=dict(l=0, r=0, t=20, b=0))
+        st.plotly_chart(b_fig, use_container_width=True)
+        
+        total_strategy_ret = b_df['Cum_Strategy'].iloc[-1] * 100
+        total_market_ret = b_df['Cum_Market'].iloc[-1] * 100
+        
+        res1, res2, res3 = st.columns(3)
+        res1.metric("Strategy Net Return", f"{total_strategy_ret:+.2f}%")
+        res2.metric("Buy & Hold Return", f"{total_market_ret:+.2f}%")
+        res3.metric("Alpha (Outperformance)", f"{total_strategy_ret - total_market_ret:+.2f}%")
+    else:
+        st.info("Insufficient historical points to run complete backtest. Switch timeframe to 1y or 2y in the sidebar.")
