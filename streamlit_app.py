@@ -6,6 +6,11 @@ import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
 from datetime import date, timedelta
 
+# Import Alpaca components globally
+from alpaca.trading.client import TradingClient
+from alpaca.trading.requests import MarketOrderRequest
+from alpaca.trading.enums import OrderSide, TimeInForce
+
 # --- 1. PAGE SETUP & CSS ---
 st.set_page_config(page_title="Nexus Trade Terminal", layout="wide", initial_sidebar_state="expanded")
 
@@ -13,18 +18,23 @@ st.markdown("""
     <style>
     .main-header { font-size: 2.5rem; font-weight: 700; color: #00d09c; margin-bottom: 0px;}
     .sub-header { font-size: 1rem; color: #888888; margin-bottom: 20px;}
-    .profit { color: #00d09c; font-weight: bold;}
-    .loss { color: #ff5050; font-weight: bold;}
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-header">Nexus Trade Terminal</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Advanced Market Analytics & Alpaca Paper Trading</div>', unsafe_allow_html=True)
 
-# --- 2. SIDEBAR SEARCH ---
+# --- 2. SIDEBAR SEARCH & API KEYS ---
 with st.sidebar:
     st.header("🔍 Market Search")
     ticker = st.text_input("Search Asset (e.g., AAPL, TSLA, MSFT):", "AAPL").upper()
+    
+    st.divider()
+    
+    # MOVED API KEYS HERE SO ALL TABS CAN USE THEM
+    st.header("🔑 Alpaca API Keys")
+    api_key = st.text_input("Alpaca API Key", type="password")
+    secret_key = st.text_input("Alpaca Secret Key", type="password")
     
     st.divider()
     st.write("📈 **Market Indices**")
@@ -91,30 +101,63 @@ with tab1:
         st.write(f"**AI Signal:** {trend}")
         st.write(f"**Projected Target:** ${pred:.2f}")
 
-# --- TAB 2: MOCK PORTFOLIO ---
+# --- TAB 2: LIVE PORTFOLIO ---
 with tab2:
-    st.subheader("💼 Simulated Holdings")
-    portfolio_data = {
-        'Asset': ['AAPL', 'MSFT', 'TSLA', 'NVDA'],
-        'Shares': [15, 10, 5, 20],
-        'Avg Price': [150.00, 310.00, 200.00, 110.00],
-        'Current Price': [last_close if ticker == 'AAPL' else 175.50, 415.00, 185.00, 125.00]
-    }
-    port_df = pd.DataFrame(portfolio_data)
-    port_df['Invested Value'] = port_df['Shares'] * port_df['Avg Price']
-    port_df['Current Value'] = port_df['Shares'] * port_df['Current Price']
-    port_df['P&L'] = port_df['Current Value'] - port_df['Invested Value']
-    port_df['P&L %'] = (port_df['P&L'] / port_df['Invested Value']) * 100
+    st.subheader("💼 Live Alpaca Portfolio")
     
-    total_invested = port_df['Invested Value'].sum()
-    total_current = port_df['Current Value'].sum()
-    total_pl = total_current - total_invested
-    
-    c1, c2 = st.columns(2)
-    c1.metric("Total Invested", f"${total_invested:,.2f}")
-    c2.metric("Current Value", f"${total_current:,.2f}", f"${total_pl:,.2f}")
-    
-    st.dataframe(port_df, use_container_width=True, hide_index=True)
+    if not api_key or not secret_key:
+        st.warning("⚠️ Please enter your Alpaca API Key and Secret Key in the sidebar to view your live portfolio.")
+    else:
+        try:
+            # Connect to Alpaca
+            client = TradingClient(api_key, secret_key, paper=True)
+            
+            # Fetch Account Balance & Buying Power
+            account = client.get_account()
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total Equity (Portfolio Value)", f"${float(account.equity):,.2f}")
+            c2.metric("Buying Power", f"${float(account.buying_power):,.2f}")
+            c3.metric("Available Cash", f"${float(account.cash):,.2f}")
+            
+            st.divider()
+            st.subheader("📊 Open Positions")
+            
+            # Fetch Open Positions
+            positions = client.get_all_positions()
+            
+            if not positions:
+                st.info("You currently have no open positions in your Alpaca account.")
+            else:
+                # Convert positions into a Pandas DataFrame for a clean table
+                pos_data = []
+                for p in positions:
+                    pos_data.append({
+                        'Asset': p.symbol,
+                        'Shares': float(p.qty),
+                        'Avg Price': float(p.avg_entry_price),
+                        'Current Price': float(p.current_price),
+                        'Market Value': float(p.market_value),
+                        'P&L ($)': float(p.unrealized_pl),
+                        'P&L (%)': float(p.unrealized_plpc) * 100
+                    })
+                
+                df_pos = pd.DataFrame(pos_data)
+                
+                # Format the DataFrame to look professional
+                display_df = df_pos.style.format({
+                    'Shares': '{:.4f}', 
+                    'Avg Price': '${:.2f}',
+                    'Current Price': '${:.2f}',
+                    'Market Value': '${:.2f}',
+                    'P&L ($)': '${:.2f}',
+                    'P&L (%)': '{:.2f}%'
+                })
+                
+                st.dataframe(display_df, use_container_width=True, hide_index=True)
+                
+        except Exception as e:
+            st.error(f"❌ Could not fetch portfolio data. Please check if your API keys are correct. Error: {e}")
 
 # --- TAB 3: NEWS FEED ---
 with tab3:
@@ -129,14 +172,7 @@ with tab3:
 
 # --- TAB 4: TRADE STATION (ALPACA PAPER TRADING) ---
 with tab4:
-    st.subheader(f"⚡ Execute Order: {ticker} (Live Paper Trading)")
-    
-    st.markdown("Enter your [Alpaca Paper Trading](https://alpaca.markets/) API keys below:")
-    col_k1, col_k2 = st.columns(2)
-    api_key = col_k1.text_input("Alpaca API Key", type="password")
-    secret_key = col_k2.text_input("Alpaca Secret Key", type="password")
-    
-    st.divider()
+    st.subheader(f"⚡ Execute Order: {ticker}")
     
     t1, t2 = st.columns(2)
     
@@ -149,14 +185,10 @@ with tab4:
         
         if st.button("Place Paper Trade via Alpaca"):
             if not api_key or not secret_key:
-                st.error("⚠️ Please enter your Alpaca API Key and Secret Key above to connect.")
+                st.error("⚠️ Please enter your Alpaca API keys in the sidebar.")
             else:
                 with st.spinner("Transmitting order to Alpaca exchange..."):
                     try:
-                        from alpaca.trading.client import TradingClient
-                        from alpaca.trading.requests import MarketOrderRequest
-                        from alpaca.trading.enums import OrderSide, TimeInForce
-                        
                         trading_client = TradingClient(api_key, secret_key, paper=True)
                         side = OrderSide.BUY if action == "Buy" else OrderSide.SELL
                         
@@ -175,16 +207,14 @@ with tab4:
                         st.error(f"❌ Order Failed: {e}")
                         
     with t2:
-        st.write("### Live Account Status")
-        if st.button("Check Buying Power"):
-            if api_key and secret_key:
-                try:
-                    from alpaca.trading.client import TradingClient
-                    client = TradingClient(api_key, secret_key, paper=True)
-                    account = client.get_account()
-                    st.metric("Total Equity", f"${float(account.equity):,.2f}")
-                    st.metric("Buying Power", f"${float(account.buying_power):,.2f}")
-                except Exception as e:
-                    st.error("Could not fetch account details. Check your API keys.")
-            else:
-                st.warning("Enter keys above to view account status.")
+        st.write("### Quick Account Status")
+        if not api_key or not secret_key:
+            st.warning("Enter API keys in the sidebar to view status.")
+        else:
+            try:
+                client = TradingClient(api_key, secret_key, paper=True)
+                account = client.get_account()
+                st.metric("Total Equity", f"${float(account.equity):,.2f}")
+                st.metric("Buying Power", f"${float(account.buying_power):,.2f}")
+            except Exception as e:
+                st.error("Could not fetch account details.")
