@@ -23,8 +23,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-header">Nexus Pro | Institutional Trade Terminal ⚡</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Algorithmic Forecasting, Fundamentals, Strategy Backtesting & Alpaca Execution</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">Nexus Pro | Global Markets Terminal ⚡</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-header">US & Indian Equities, Commodities, AI Forecasting & Alpaca Execution</div>', unsafe_allow_html=True)
 
 # Session State for Alpaca Credentials
 if "api_key" not in st.session_state:
@@ -35,16 +35,38 @@ if "api_key" not in st.session_state:
         st.session_state["api_key"] = ""
         st.session_state["secret_key"] = ""
 
-# --- 2. SIDEBAR CONFIGURATION ---
+# --- 2. SIDEBAR CONFIGURATION (GLOBAL ASSETS) ---
 with st.sidebar:
     st.header("⚡ Watchlist & Ticker")
-    popular_stocks = ["AAPL", "NVDA", "TSLA", "MSFT", "GOOGL", "AMZN", "META", "AMD"]
-    selected_quick = st.selectbox("Quick Select:", ["Custom"] + popular_stocks)
     
-    if selected_quick == "Custom":
-        ticker = st.text_input("Asset Ticker:", "AAPL").upper()
+    # Expanded Groww-like Universe
+    market_assets = {
+        "Custom Ticker Search": "Custom",
+        "--- US EQUITIES ---": "",
+        "Apple (AAPL)": "AAPL",
+        "Nvidia (NVDA)": "NVDA",
+        "Tesla (TSLA)": "TSLA",
+        "--- INDIAN INDICES ---": "",
+        "Nifty 50": "^NSEI",
+        "Bank Nifty": "^NSEBANK",
+        "Sensex": "^BSESN",
+        "--- INDIAN EQUITIES ---": "",
+        "Reliance (NSE)": "RELIANCE.NS",
+        "TCS (NSE)": "TCS.NS",
+        "HDFC Bank (NSE)": "HDFCBANK.NS",
+        "--- COMMODITIES ---": "",
+        "Crude Oil": "CL=F",
+        "Gold Futures": "GC=F"
+    }
+    
+    selected_name = st.selectbox("Quick Select Asset:", list(market_assets.keys()))
+    
+    if selected_name == "Custom Ticker Search":
+        ticker = st.text_input("Enter Ticker (e.g., INFY.NS, TSLA):", "AAPL").upper()
+    elif market_assets[selected_name] == "":
+        ticker = "AAPL" # Fallback if they click a header
     else:
-        ticker = selected_quick
+        ticker = market_assets[selected_name]
         
     timeframe = st.selectbox("Historical Lookback:", ["6mo", "1y", "2y", "5y"], index=2)
     
@@ -67,19 +89,16 @@ def fetch_market_data(symbol, period_choice):
         df.columns = df.columns.get_level_values(0)
     df.reset_index(inplace=True)
     
-    # Calculate Technical Overlays
     if not df.empty:
         df['SMA_20'] = df['Close'].rolling(window=20).mean()
         df['SMA_50'] = df['Close'].rolling(window=50).mean()
         df['EMA_200'] = df['Close'].ewm(span=200, adjust=False).mean()
         
-        # Bollinger Bands
         df['BB_Mid'] = df['Close'].rolling(window=20).mean()
         df['BB_Std'] = df['Close'].rolling(window=20).std()
         df['BB_Upper'] = df['BB_Mid'] + (df['BB_Std'] * 2)
         df['BB_Lower'] = df['BB_Mid'] - (df['BB_Std'] * 2)
         
-        # RSI
         delta = df['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
@@ -91,23 +110,19 @@ def fetch_market_data(symbol, period_choice):
     except Exception:
         info = {}
         
-    # --- UPGRADED ROBUST NEWS ENGINE ---
     news_extracted = []
     try:
-        raw_news = stock.news[:8]  # Fetch top 8 live articles
+        raw_news = stock.news[:8]
         for n in raw_news:
-            # Handle new Yahoo Finance nested structure
             if 'content' in n:
                 c = n['content']
                 title = c.get('title', 'Headline Unavailable')
                 link = c.get('clickThroughUrl', c.get('canonicalUrl', {}).get('url', '#'))
                 publisher = c.get('provider', {}).get('displayName', 'Yahoo Finance')
-            # Handle traditional flat structure
             else:
                 title = n.get('title', 'Headline Unavailable')
                 link = n.get('link', '#')
                 publisher = n.get('publisher', 'Yahoo Finance')
-                
             news_extracted.append({'title': title, 'link': link, 'publisher': publisher})
     except Exception:
         pass
@@ -125,6 +140,9 @@ prev_close = float(df['Close'].iloc[-2])
 change_val = last_close - prev_close
 change_pct = (change_val / prev_close) * 100
 
+# Currency Formatter based on Asset
+currency_sym = "₹" if ".NS" in ticker or ".BO" in ticker or "^NSE" in ticker or "^BSE" in ticker else "$"
+
 # --- 4. TERMINAL NAVIGATION TABS ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📈 Interactive Analytics", 
@@ -139,36 +157,27 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # ==========================================
 with tab1:
     col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
-    col_metric1.metric("Spot Price", f"${last_close:.2f}", f"{change_val:+.2f} ({change_pct:+.2f}%)")
-    col_metric2.metric("Day High", f"${df['High'].iloc[-1]:.2f}")
-    col_metric3.metric("Day Low", f"${df['Low'].iloc[-1]:.2f}")
+    col_metric1.metric("Spot Price", f"{currency_sym}{last_close:.2f}", f"{change_val:+.2f} ({change_pct:+.2f}%)")
+    col_metric2.metric("Day High", f"{currency_sym}{df['High'].iloc[-1]:.2f}")
+    col_metric3.metric("Day Low", f"{currency_sym}{df['Low'].iloc[-1]:.2f}")
     col_metric4.metric("Trading Volume", f"{int(df['Volume'].iloc[-1]):,}")
     
     st.divider()
     
-    # Advanced Dual-Pane Plotly Chart (Candles + Volume)
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.04, row_heights=[0.75, 0.25])
-    
-    # Price Candlestick
-    fig.add_trace(go.Candlestick(
-        x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'
-    ), row=1, col=1)
-    
-    # Overlays
+    fig.add_trace(go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], line=dict(color='#ffa726', width=1.2), name='SMA 20'), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], line=dict(color='#29b6f6', width=1.2), name='SMA 50'), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Upper'], line=dict(color='rgba(255,255,255,0.2)', width=1), name='BB Upper'), row=1, col=1)
     fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Lower'], line=dict(color='rgba(255,255,255,0.2)', width=1), fill='tonexty', fillcolor='rgba(255,255,255,0.03)', name='BB Lower'), row=1, col=1)
     
-    # Volume Bar Chart
     colors = ['#00d09c' if c >= o else '#ff5050' for c, o in zip(df['Close'], df['Open'])]
     fig.add_trace(go.Bar(x=df['Date'], y=df['Volume'], marker_color=colors, name='Volume', showlegend=False), row=2, col=1)
-    
     fig.update_layout(template="plotly_dark", height=580, margin=dict(l=0, r=0, t=10, b=0), xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
     
-    # Machine Learning Quick Forecast
-    st.subheader("🤖 Neural Price Target & Machine Learning Signal")
+    st.subheader("🤖 Neural Price Target & AI Signal")
+    st.caption("Note: AI models provide probabilistic estimates, not financial advice. Accuracy is highly dependent on market volatility.")
     ml_df = df[['Close', 'SMA_20', 'SMA_50', 'RSI']].dropna().copy()
     ml_df['Target'] = ml_df['Close'].shift(-1)
     ml_features = ml_df.dropna()
@@ -183,11 +192,11 @@ with tab1:
         predicted_target = rf.predict(last_features)[0]
         
         c_ai1, c_ai2 = st.columns([1, 2])
-        c_ai1.metric("Predicted Next Session Target", f"${predicted_target:.2f}", f"${predicted_target - last_close:+.2f}")
+        c_ai1.metric("Predicted Next Session Target", f"{currency_sym}{predicted_target:.2f}", f"{predicted_target - last_close:+.2f}")
         c_ai2.info(
-            f"**Model Signal:** {'BULLISH ACCUMULATION 🟢' if predicted_target > last_close else 'BEARISH DISTRIBUTION 🔴'}. "
+            f"**Model Signal:** {'BULLISH 🟢' if predicted_target > last_close else 'BEARISH 🔴'}. "
             f"Current RSI is **{df['RSI'].iloc[-1]:.1f}**. "
-            f"Asset is trading {'Above' if last_close > df['SMA_50'].iloc[-1] else 'Below'} the 50-day moving average."
+            f"Asset is trading {'Above' if last_close > df['SMA_50'].iloc[-1] else 'Below'} the 50-day SMA."
         )
 
 # ==========================================
@@ -197,16 +206,10 @@ with tab2:
     st.subheader(f"🏢 Fundamental Breakdown: {ticker}")
     
     f1, f2, f3, f4 = st.columns(4)
-    f1.metric("Market Capitalization", f"${stock_info.get('marketCap', 0):,}")
+    f1.metric("Market Capitalization", f"{currency_sym}{stock_info.get('marketCap', 0):,}")
     f2.metric("Trailing P/E Ratio", f"{stock_info.get('trailingPE', 'N/A')}")
     f3.metric("Forward P/E Ratio", f"{stock_info.get('forwardPE', 'N/A')}")
     f4.metric("Beta (Volatility)", f"{stock_info.get('beta', 'N/A')}")
-    
-    f5, f6, f7, f8 = st.columns(4)
-    f5.metric("52-Week High", f"${stock_info.get('fiftyTwoWeekHigh', 'N/A')}")
-    f6.metric("52-Week Low", f"${stock_info.get('fiftyTwoWeekLow', 'N/A')}")
-    f7.metric("Dividend Yield", f"{(stock_info.get('dividendYield', 0) or 0)*100:.2f}%")
-    f8.metric("Profit Margin", f"{(stock_info.get('profitMargins', 0) or 0)*100:.2f}%")
     
     st.divider()
     st.subheader("📰 Live Market News & AI Sentiment")
@@ -214,26 +217,19 @@ with tab2:
     if news_data:
         bull_words = ['up', 'surge', 'gain', 'profit', 'high', 'beat', 'bull', 'growth', 'rally', 'buy']
         bear_words = ['down', 'drop', 'fall', 'loss', 'low', 'miss', 'bear', 'plunge', 'warn', 'sell']
-        
         total_score = 0
         for item in news_data:
             title = item['title']
-            link = item['link']
-            publisher = item['publisher']
-            
-            # Simple AI NLP Scoring
             score = sum([1 for w in bull_words if w in title.lower()]) - sum([1 for w in bear_words if w in title.lower()])
             total_score += score
-            
             sentiment_tag = "🟢 BULLISH" if score > 0 else "🔴 BEARISH" if score < 0 else "⚪ NEUTRAL"
             
-            # Display Real News
-            st.markdown(f"#### [{title}]({link})")
-            st.caption(f"Source: **{publisher}** | Analysis: {sentiment_tag}")
+            st.markdown(f"#### [{title}]({item['link']})")
+            st.caption(f"Source: **{item['publisher']}** | Analysis: {sentiment_tag}")
             st.write("---")
             
         sentiment_summary = "Bullish Momentum" if total_score > 0 else "Bearish Caution" if total_score < 0 else "Neutral Equilibrium"
-        st.info(f"🧠 **Aggregated AI News Sentiment for {ticker}:** {sentiment_summary}")
+        st.info(f"🧠 **Aggregated AI News Sentiment:** {sentiment_summary}")
     else:
         st.write("No exact live news items could be routed for this ticker at this moment.")
 
@@ -251,12 +247,11 @@ with tab3:
             acc = client.get_account()
             
             p1, p2, p3, p4 = st.columns(4)
-            p1.metric("Total Equity", f"${float(acc.equity or 0.0):,.2f}")
-            p2.metric("Buying Power", f"${float(acc.buying_power or 0.0):,.2f}")
-            p3.metric("Cash Balance", f"${float(acc.cash or 0.0):,.2f}")
-            
+            p1.metric("Total Equity (USD)", f"${float(acc.equity or 0.0):,.2f}")
+            p2.metric("Buying Power (USD)", f"${float(acc.buying_power or 0.0):,.2f}")
+            p3.metric("Cash Balance (USD)", f"${float(acc.cash or 0.0):,.2f}")
             dt_power = acc.daytrading_buying_power if acc.daytrading_buying_power is not None else acc.buying_power
-            p4.metric("Daytrade Power", f"${float(dt_power or 0.0):,.2f}")
+            p4.metric("Daytrade Power (USD)", f"${float(dt_power or 0.0):,.2f}")
             
             st.divider()
             st.subheader("📊 Open Positions")
@@ -272,30 +267,14 @@ with tab3:
                         'Shares': float(p.qty),
                         'Entry Price': float(p.avg_entry_price),
                         'Current Price': float(p.current_price),
-                        'Market Value': float(p.market_value),
                         'Unrealized P&L ($)': float(p.unrealized_pl),
                         'P&L (%)': float(p.unrealized_plpc) * 100
                     })
                 df_p = pd.DataFrame(pos_list)
                 st.dataframe(df_p.style.format({
                     'Shares': '{:.2f}', 'Entry Price': '${:.2f}', 'Current Price': '${:.2f}',
-                    'Market Value': '${:.2f}', 'Unrealized P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
+                    'Unrealized P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
                 }), use_container_width=True, hide_index=True)
-                
-            st.divider()
-            st.subheader("📋 Order Execution Log")
-            order_req = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=8)
-            orders = client.get_orders(filter=order_req)
-            if orders:
-                ord_list = [{
-                    'Time': o.created_at.strftime('%Y-%m-%d %H:%M:%S') if o.created_at else 'N/A',
-                    'Symbol': o.symbol,
-                    'Side': str(o.side).split('.')[-1].upper(),
-                    'Qty': float(o.qty) if o.qty else 0.0,
-                    'Type': str(o.order_type).split('.')[-1].upper(),
-                    'Status': str(o.status).split('.')[-1].upper()
-                } for o in orders]
-                st.dataframe(pd.DataFrame(ord_list), use_container_width=True, hide_index=True)
         except Exception as e:
             st.error(f"❌ Account Connection Failed: {e}")
 
@@ -307,28 +286,32 @@ with tab4:
     t_col1, t_col2 = st.columns(2)
     
     with t_col1:
-        st.info(f"**Live Exchange Quote:** ${last_close:.2f}")
+        st.info(f"**Live Exchange Quote:** {currency_sym}{last_close:.2f}")
         order_style = st.selectbox("Order Routing Type", ["Market Order", "Limit Order"])
         order_side = st.radio("Side", ["Buy", "Sell"], horizontal=True)
         order_qty = st.number_input("Shares Quantity", min_value=0.01, value=1.0, step=1.0)
         
         limit_px = None
         if order_style == "Limit Order":
-            limit_px = st.number_input("Limit Execution Price ($)", min_value=0.01, value=float(last_close), step=0.5)
+            limit_px = st.number_input(f"Limit Price ({currency_sym})", min_value=0.01, value=float(last_close), step=0.5)
             est_value = limit_px * order_qty
         else:
             est_value = last_close * order_qty
             
-        st.write(f"**Gross Order Notional:** ${est_value:,.2f}")
+        st.write(f"**Gross Order Notional:** {currency_sym}{est_value:,.2f}")
+        
+        # BROKER SAFETY SWITCH
+        is_foreign = "^" in ticker or "=F" in ticker or ".NS" in ticker or ".BO" in ticker
         
         if st.button("🚀 Transmit Order to Alpaca"):
             if not api_key or not secret_key:
                 st.error("⚠️ Connect your API keys in the sidebar before routing orders.")
+            elif is_foreign:
+                st.error(f"❌ **Broker Rejection:** Alpaca (US Broker) does not support routing orders for Indian Equities, Global Indices, or Commodities like '{ticker}'. Please select a US stock (e.g., AAPL, TSLA) to execute trades.")
             else:
                 with st.spinner("Executing order routing..."):
                     try:
                         trading_client = TradingClient(api_key, secret_key, paper=True)
-                        
                         req_wash = GetOrdersRequest(status=QueryOrderStatus.OPEN, symbols=[ticker])
                         open_pending = trading_client.get_orders(filter=req_wash)
                         if open_pending:
@@ -338,15 +321,9 @@ with tab4:
                         side_choice = OrderSide.BUY if order_side == "Buy" else OrderSide.SELL
                         
                         if order_style == "Limit Order":
-                            order_payload = LimitOrderRequest(
-                                symbol=ticker, qty=order_qty, side=side_choice,
-                                time_in_force=TimeInForce.DAY, limit_price=limit_px
-                            )
+                            order_payload = LimitOrderRequest(symbol=ticker, qty=order_qty, side=side_choice, time_in_force=TimeInForce.DAY, limit_price=limit_px)
                         else:
-                            order_payload = MarketOrderRequest(
-                                symbol=ticker, qty=order_qty, side=side_choice,
-                                time_in_force=TimeInForce.DAY
-                            )
+                            order_payload = MarketOrderRequest(symbol=ticker, qty=order_qty, side=side_choice, time_in_force=TimeInForce.DAY)
                             
                         submitted = trading_client.submit_order(order_data=order_payload)
                         st.success("✅ Order Transmitted Successfully!")
@@ -362,7 +339,6 @@ with tab4:
                 account_meta = client.get_account()
                 st.metric("Total Equity", f"${float(account_meta.equity or 0.0):,.2f}")
                 st.metric("Available Buying Power", f"${float(account_meta.buying_power or 0.0):,.2f}")
-                st.metric("Cash Balance", f"${float(account_meta.cash or 0.0):,.2f}")
                 
                 st.divider()
                 st.write("### Recent Transactions")
@@ -379,7 +355,6 @@ with tab4:
                     st.dataframe(pd.DataFrame(ord_list), use_container_width=True, hide_index=True)
                 else:
                     st.info("No recent transactions found.")
-                
             except Exception:
                 st.warning("Could not sync live account data.")
         else:
@@ -391,14 +366,12 @@ with tab4:
 with tab5:
     st.subheader(f"🧪 Algorithmic Strategy Simulator: {ticker}")
     st.write("Test a **Moving Average Crossover Strategy** (SMA 20 vs SMA 50) against simple Buy & Hold.")
-    
     b_df = df[['Date', 'Close', 'SMA_20', 'SMA_50']].dropna().copy()
     
     if len(b_df) > 50:
         b_df['Signal'] = np.where(b_df['SMA_20'] > b_df['SMA_50'], 1, 0)
         b_df['Market_Return'] = b_df['Close'].pct_change()
         b_df['Strategy_Return'] = b_df['Signal'].shift(1) * b_df['Market_Return']
-        
         b_df['Cum_Market'] = (1 + b_df['Market_Return']).cumprod() - 1
         b_df['Cum_Strategy'] = (1 + b_df['Strategy_Return']).cumprod() - 1
         
@@ -408,12 +381,9 @@ with tab5:
         b_fig.update_layout(template="plotly_dark", height=420, yaxis_title="Cumulative Return (%)", margin=dict(l=0, r=0, t=20, b=0))
         st.plotly_chart(b_fig, use_container_width=True)
         
-        total_strategy_ret = b_df['Cum_Strategy'].iloc[-1] * 100
-        total_market_ret = b_df['Cum_Market'].iloc[-1] * 100
-        
         res1, res2, res3 = st.columns(3)
-        res1.metric("Strategy Net Return", f"{total_strategy_ret:+.2f}%")
-        res2.metric("Buy & Hold Return", f"{total_market_ret:+.2f}%")
-        res3.metric("Alpha (Outperformance)", f"{total_strategy_ret - total_market_ret:+.2f}%")
+        res1.metric("Strategy Net Return", f"{b_df['Cum_Strategy'].iloc[-1] * 100:+.2f}%")
+        res2.metric("Buy & Hold Return", f"{b_df['Cum_Market'].iloc[-1] * 100:+.2f}%")
+        res3.metric("Alpha (Outperformance)", f"{(b_df['Cum_Strategy'].iloc[-1] - b_df['Cum_Market'].iloc[-1]) * 100:+.2f}%")
     else:
         st.info("Insufficient historical points to run complete backtest. Switch timeframe to 1y or 2y in the sidebar.")
