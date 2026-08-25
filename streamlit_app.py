@@ -8,8 +8,8 @@ from datetime import date, timedelta
 
 # Import Alpaca components
 from alpaca.trading.client import TradingClient
-from alpaca.trading.requests import MarketOrderRequest
-from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.requests import MarketOrderRequest, GetOrdersRequest
+from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 
 # --- 1. PAGE SETUP & CSS ---
 st.set_page_config(page_title="Nexus Trade Terminal", layout="wide", initial_sidebar_state="expanded")
@@ -22,15 +22,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-header">Nexus Trade Terminal</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Advanced Market Analytics & Live Alpaca Paper Trading</div>', unsafe_allow_html=True)
-
-# --- Check for Saved Secrets ---
-try:
-    saved_api_key = st.secrets["ALPACA_API_KEY"]
-    saved_secret_key = st.secrets["ALPACA_SECRET_KEY"]
-except:
-    saved_api_key = ""
-    saved_secret_key = ""
+st.markdown('<div class="sub-header">Advanced Market Analytics & Alpaca Paper Trading</div>', unsafe_allow_html=True)
 
 # --- 2. SIDEBAR SEARCH & API KEYS ---
 with st.sidebar:
@@ -40,9 +32,9 @@ with st.sidebar:
     st.divider()
     
     st.header("🔑 Alpaca API Keys")
-    st.caption("Keys entered here securely power your Portfolio and Trade Station.")
-    api_key = st.text_input("Alpaca API Key", value=saved_api_key, type="password")
-    secret_key = st.text_input("Alpaca Secret Key", value=saved_secret_key, type="password")
+    st.caption("Keys entered here connect both your Portfolio and Trade Station.")
+    api_key = st.text_input("Alpaca API Key", type="password")
+    secret_key = st.text_input("Alpaca Secret Key", type="password")
     
     st.divider()
     st.write("📈 **Market Indices**")
@@ -109,52 +101,82 @@ with tab1:
         st.write(f"**AI Signal:** {trend}")
         st.write(f"**Projected Target:** ${pred:.2f}")
 
-# --- TAB 2: LIVE PORTFOLIO ---
+# --- TAB 2: LIVE ALPACA PORTFOLIO & ORDERS ---
 with tab2:
     st.subheader("💼 Live Alpaca Portfolio")
     
     if not api_key or not secret_key:
-        st.warning("⚠️ Please enter your Alpaca API Key and Secret Key in the sidebar to view your live portfolio.")
+        st.warning("⚠️ Please enter your Alpaca API Key and Secret Key in the sidebar to load your live portfolio.")
     else:
         try:
             client = TradingClient(api_key, secret_key, paper=True)
             account = client.get_account()
             
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Total Equity (Portfolio Value)", f"${float(account.equity):,.2f}")
+            # Balances & Power metrics
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Total Equity", f"${float(account.equity):,.2f}")
             c2.metric("Buying Power", f"${float(account.buying_power):,.2f}")
-            c3.metric("Available Cash", f"${float(account.cash):,.2f}")
+            c3.metric("Cash Balance", f"${float(account.cash):,.2f}")
+            c4.metric("Daytrade Power", f"${float(getattr(account, 'daytrading_buying_power', account.buying_power)):,.2f}")
             
             st.divider()
-            st.subheader("📊 Open Positions")
             
+            # --- OPEN POSITIONS ---
+            st.subheader("📊 Open Positions")
             positions = client.get_all_positions()
             
             if not positions:
-                st.info("You currently have no open positions in your Alpaca account.")
+                st.info("No open positions found in this Alpaca account.")
             else:
                 pos_data = []
                 for p in positions:
                     pos_data.append({
                         'Asset': p.symbol,
                         'Shares': float(p.qty),
-                        'Avg Price': float(p.avg_entry_price),
+                        'Avg Entry Price': float(p.avg_entry_price),
                         'Current Price': float(p.current_price),
                         'Market Value': float(p.market_value),
-                        'P&L ($)': float(p.unrealized_pl),
+                        'Unrealized P&L ($)': float(p.unrealized_pl),
                         'P&L (%)': float(p.unrealized_plpc) * 100
                     })
                 
                 df_pos = pd.DataFrame(pos_data)
-                display_df = df_pos.style.format({
-                    'Shares': '{:.4f}', 'Avg Price': '${:.2f}', 'Current Price': '${:.2f}',
-                    'Market Value': '${:.2f}', 'P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
+                formatted_pos = df_pos.style.format({
+                    'Shares': '{:.4f}',
+                    'Avg Entry Price': '${:.2f}',
+                    'Current Price': '${:.2f}',
+                    'Market Value': '${:.2f}',
+                    'Unrealized P&L ($)': '${:.2f}',
+                    'P&L (%)': '{:.2f}%'
                 })
+                st.dataframe(formatted_pos, use_container_width=True, hide_index=True)
                 
-                st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.divider()
+            
+            # --- LIVE ORDERS TRACKER ---
+            st.subheader("📋 Recent & Open Orders")
+            order_filter = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=10)
+            orders = client.get_orders(filter=order_filter)
+            
+            if not orders:
+                st.info("No recent orders found.")
+            else:
+                orders_data = []
+                for o in orders:
+                    orders_data.append({
+                        'Created At': o.created_at.strftime('%Y-%m-%d %H:%M:%S') if o.created_at else 'N/A',
+                        'Asset': o.symbol,
+                        'Side': str(o.side).split('.')[-1].upper(),
+                        'Qty': float(o.qty) if o.qty else 0.0,
+                        'Filled Qty': float(o.filled_qty) if o.filled_qty else 0.0,
+                        'Type': str(o.order_type).split('.')[-1].upper(),
+                        'Status': str(o.status).split('.')[-1].upper()
+                    })
+                df_orders = pd.DataFrame(orders_data)
+                st.dataframe(df_orders, use_container_width=True, hide_index=True)
                 
         except Exception as e:
-            st.error(f"❌ Could not fetch portfolio data. Please check if your API keys are correct. Error: {e}")
+            st.error(f"❌ Error fetching Alpaca account data: {e}")
 
 # --- TAB 3: NEWS FEED ---
 with tab3:
@@ -213,5 +235,6 @@ with tab4:
                 account = client.get_account()
                 st.metric("Total Equity", f"${float(account.equity):,.2f}")
                 st.metric("Buying Power", f"${float(account.buying_power):,.2f}")
+                st.metric("Cash", f"${float(account.cash):,.2f}")
             except Exception:
                 st.error("Could not fetch account details.")
