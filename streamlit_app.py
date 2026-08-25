@@ -9,11 +9,16 @@ st.title("📈 Stock Price Prediction App")
 st.write("This app predicts the next trading day's closing price for Apple (AAPL) using a Random Forest Regressor.")
 
 # 2. Fetch the data using yfinance
-@st.cache_data # This caches the data so it doesn't redownload every time you click a button
+@st.cache_data 
 def load_data(ticker):
     start_date = date.today() - timedelta(days=365 * 5) # Get last 5 years of data
     end_date = date.today()
     data = yf.download(ticker, start=start_date, end=end_date)
+    
+    # FIX: Flatten the complex column headers caused by the new yfinance update
+    if isinstance(data.columns, pd.MultiIndex):
+        data.columns = data.columns.get_level_values(0)
+        
     data.reset_index(inplace=True)
     return data
 
@@ -44,8 +49,7 @@ y = df_model['Close']        # Target variable
 model = RandomForestRegressor(n_estimators=100, random_state=42)
 model.fit(X, y)
 
-# 6. Predict the next day (FIXED)
-# We must extract the scalar value using .item() or float() to ensure it's a standard number
+# 6. Predict the next day
 last_available_price = float(df['Close'].iloc[-1])
 
 # Scikit-learn expects the prediction input to have the exact same column names as the training data
