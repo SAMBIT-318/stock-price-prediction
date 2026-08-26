@@ -20,10 +20,15 @@ st.markdown("""
     .main-header { font-size: 3rem; font-weight: 800; color: #00d09c; letter-spacing: -0.5px; margin-bottom: 0px;}
     .sub-header { font-size: 3rem; color: #9aa0a6; margin-bottom: 20px;}
     /* Adjust Streamlit tab label size */
-button[data-baseweb="tab"] p {
-    font-size: 3rem !important; /* Adjust size as needed */
-    font-weight: 600;
-}
+/* Adjust Streamlit tab label size */
+    button[data-baseweb="tab"] {
+        font-size: 1.25rem !important;
+        font-weight: 600 !important;
+    }
+    button[data-baseweb="tab"] * {
+        font-size: 1.25rem !important;
+        font-weight: 600 !important;
+    }
     .stat-box { background-color: #1e222d; padding: 12px; border-radius: 8px; border: 1px solid #2a2e39;}
     </style>
 """, unsafe_allow_html=True)
