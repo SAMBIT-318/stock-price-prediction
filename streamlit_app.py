@@ -13,7 +13,7 @@ from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, GetOr
 from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 
 # --- 1. PAGE SETUP & MODERN UI THEME ---
-st.set_page_config(page_title="Nexus Pro Terminal", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -23,7 +23,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown('<div class="main-header">Nexus Pro | Global Markets Terminal ⚡</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">Nexus Pro | Global Markets ⚡</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">US & Indian Equities, Options Chain, Commodities, AI Analytics & Alpaca Execution</div>', unsafe_allow_html=True)
 
 # --- SECURE BACKGROUND AUTHENTICATION ---
