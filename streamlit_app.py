@@ -17,8 +17,8 @@ st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state=
 
 st.markdown("""
     <style>
-    .main-header { font-size: 2.3rem; font-weight: 800; color: #00d09c; letter-spacing: -0.5px; margin-bottom: 0px;}
-    .sub-header { font-size: 0.95rem; color: #9aa0a6; margin-bottom: 20px;}
+    .main-header { font-size: 5rem; font-weight: 800; color: #00d09c; letter-spacing: -0.5px; margin-bottom: 0px;}
+    .sub-header { font-size: 5rem; color: #9aa0a6; margin-bottom: 20px;}
     .stat-box { background-color: #1e222d; padding: 12px; border-radius: 8px; border: 1px solid #2a2e39;}
     </style>
 """, unsafe_allow_html=True)
