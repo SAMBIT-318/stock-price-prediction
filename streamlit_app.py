@@ -20,14 +20,13 @@ st.markdown("""
     .main-header { font-size: 3rem; font-weight: 800; color: #00d09c; letter-spacing: -0.5px; margin-bottom: 0px;}
     .sub-header { font-size: 3rem; color: #9aa0a6; margin-bottom: 20px;}
     /* Adjust Streamlit tab label size */
-/* Adjust Streamlit tab label size */
-    button[data-baseweb="tab"] {
-        font-size: 1.25rem !important;
-        font-weight: 600 !important;
-    }
-    button[data-baseweb="tab"] * {
-        font-size: 1.25rem !important;
-        font-weight: 600 !important;
+/* Target all possible Streamlit tab selectors */
+    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p,
+    .stTabs [data-baseweb="tab-list"] button div,
+    .stTabs [data-baseweb="tab-list"] button span,
+    .stTabs [data-baseweb="tab"] {
+        font-size: 1.4rem !important;
+        font-weight: 700 !important;
     }
     .stat-box { background-color: #1e222d; padding: 12px; border-radius: 8px; border: 1px solid #2a2e39;}
     </style>
