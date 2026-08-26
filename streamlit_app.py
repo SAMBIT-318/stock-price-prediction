@@ -25,7 +25,7 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] button div,
     .stTabs [data-baseweb="tab-list"] button span,
     .stTabs [data-baseweb="tab"] {
-        font-size: 1.4rem !important;
+        font-size: 4rem !important;
         font-weight: 700 !important;
     }
     .stat-box { background-color: #1e222d; padding: 12px; border-radius: 8px; border: 1px solid #2a2e39;}
