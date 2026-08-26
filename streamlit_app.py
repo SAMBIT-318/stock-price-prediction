@@ -21,7 +21,7 @@ st.markdown("""
     .sub-header { font-size: 3rem; color: #9aa0a6; margin-bottom: 20px;}
     /* Adjust Streamlit tab label size */
 button[data-baseweb="tab"] p {
-    font-size: 1.1rem !important; /* Adjust size as needed */
+    font-size: 3rem !important; /* Adjust size as needed */
     font-weight: 600;
 }
     .stat-box { background-color: #1e222d; padding: 12px; border-radius: 8px; border: 1px solid #2a2e39;}
