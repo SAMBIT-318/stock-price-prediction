@@ -9,6 +9,7 @@ from datetime import date, timedelta
 import sqlite3
 import hashlib
 import time
+import random
 
 # Import Alpaca Components
 from alpaca.trading.client import TradingClient
@@ -60,6 +61,14 @@ def init_db():
 def make_hash(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
+def user_exists(mobile):
+    conn = sqlite3.connect('nexus_users.db')
+    c = conn.cursor()
+    c.execute('SELECT * FROM users WHERE mobile = ?', (mobile,))
+    data = c.fetchone()
+    conn.close()
+    return data is not None
+
 def add_user(mobile, password):
     conn = sqlite3.connect('nexus_users.db')
     c = conn.cursor()
@@ -87,15 +96,23 @@ if "logged_in" not in st.session_state:
 if "current_user" not in st.session_state:
     st.session_state["current_user"] = ""
 
+# Session state for OTP verification logic
+if "otp_sent" not in st.session_state:
+    st.session_state["otp_sent"] = False
+if "generated_otp" not in st.session_state:
+    st.session_state["generated_otp"] = ""
+if "reg_mobile_pending" not in st.session_state:
+    st.session_state["reg_mobile_pending"] = ""
+if "reg_pass_pending" not in st.session_state:
+    st.session_state["reg_pass_pending"] = ""
+
 # --- 3. AUTHENTICATION UI (LOGIN/REGISTER) ---
 def auth_screen():
-    # Adding spacing to push the auth box down to the middle of the screen
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     st.markdown('<div align="center"><h1 class="main-header">Nexus Pro | Access Gateway ⚡</h1></div>', unsafe_allow_html=True)
     st.markdown('<div align="center"><p class="sub-header">Secure Authentication Required</p></div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # Use columns to center the auth tabs on wide screens
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         tab1, tab2 = st.tabs(["🔐 Login", "📝 Register"])
@@ -122,31 +139,63 @@ def auth_screen():
 
         with tab2:
             st.subheader("Create a New Account")
-            reg_mobile = st.text_input("Mobile Number", key="reg_mobile", placeholder="10-digit mobile number")
-            reg_password = st.text_input("Password", type="password", key="reg_pass", placeholder="Create a strong password")
-            reg_confirm = st.text_input("Confirm Password", type="password", key="reg_conf_pass", placeholder="Confirm your password")
             
-            if st.button("Register Account", use_container_width=True):
-                if reg_mobile and reg_password and reg_confirm:
-                    if reg_password != reg_confirm:
-                        st.error("Passwords do not match!")
-                    elif len(reg_mobile) < 10:
-                        st.warning("Please enter a valid mobile number.")
-                    else:
-                        success = add_user(reg_mobile, reg_password)
-                        if success:
-                            st.success("Account created successfully! You can now login.")
+            if not st.session_state["otp_sent"]:
+                reg_mobile = st.text_input("Mobile Number", key="reg_mobile", placeholder="10-digit mobile number")
+                reg_password = st.text_input("Password", type="password", key="reg_pass", placeholder="Create a strong password")
+                reg_confirm = st.text_input("Confirm Password", type="password", key="reg_conf_pass", placeholder="Confirm your password")
+                
+                if st.button("Send Verification Code", use_container_width=True):
+                    if reg_mobile and reg_password and reg_confirm:
+                        if reg_password != reg_confirm:
+                            st.error("Passwords do not match!")
+                        elif len(reg_mobile) < 10:
+                            st.warning("Please enter a valid mobile number.")
+                        elif user_exists(reg_mobile):
+                            # Pre-check blocks existing users immediately
+                            st.error("❌ Existing user credential, please log in.")
                         else:
-                            st.error("Mobile number is already registered.")
-                else:
-                    st.warning("Please fill out all fields.")
+                            # Generate simulated OTP
+                            otp = str(random.randint(100000, 999999))
+                            st.session_state["otp_sent"] = True
+                            st.session_state["generated_otp"] = otp
+                            st.session_state["reg_mobile_pending"] = reg_mobile
+                            st.session_state["reg_pass_pending"] = reg_password
+                            st.rerun()
+                    else:
+                        st.warning("Please fill out all fields.")
+            else:
+                st.success(f"Verification code has been sent to **{st.session_state['reg_mobile_pending']}**")
+                # Showing the OTP in an info box for testing purposes. (Remove this line if connecting real SMS API)
+                st.info(f"*(Developer Mock SMS) Your OTP is: {st.session_state['generated_otp']}*")
+                
+                entered_otp = st.text_input("Enter 6-digit Verification Code", key="entered_otp", max_chars=6)
+                
+                v_col1, v_col2 = st.columns(2)
+                with v_col1:
+                    if st.button("Verify & Register", use_container_width=True, type="primary"):
+                        if entered_otp == st.session_state["generated_otp"]:
+                            success = add_user(st.session_state["reg_mobile_pending"], st.session_state["reg_pass_pending"])
+                            if success:
+                                st.success("✅ Account verified and created! You can now log in.")
+                                time.sleep(2)
+                                # Reset state
+                                st.session_state["otp_sent"] = False
+                                st.rerun()
+                            else:
+                                st.error("Error creating account. Please try again.")
+                        else:
+                            st.error("Invalid verification code.")
+                with v_col2:
+                    if st.button("Cancel & Go Back", use_container_width=True):
+                        st.session_state["otp_sent"] = False
+                        st.rerun()
 
 # --- 4. MAIN APPLICATION DASHBOARD ---
 def main_app():
     st.markdown('<div class="main-header">Nexus Pro | Global Markets ⚡</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-header">US & Indian Equities, Options Chain, Commodities, AI Analytics & Alpaca Execution</div>', unsafe_allow_html=True)
 
-    # Secure Keys Background Fetch
     try:
         api_key = st.secrets["ALPACA_API_KEY"]
         secret_key = st.secrets["ALPACA_SECRET_KEY"]
@@ -296,7 +345,6 @@ def main_app():
         
         st.divider()
         
-        # Max-height chart for full viewport coverage
         fig = make_subplots(
             rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.03, 
             row_heights=[0.65, 0.15, 0.20],
