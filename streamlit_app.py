@@ -162,7 +162,8 @@ def login_user(mobile, password):
 
 def dispatch_sms_otp(mobile_number, otp_code):
     """
-    Dispatches OTP via Fast2SMS API in real-time.
+    Dispatches OTP via Fast2SMS Quick SMS API (route=q) in real-time.
+    This bypasses the strict website verification required by the 'otp' route.
     """
     clean_number = "".join(filter(str.isdigit, str(mobile_number)))
     if len(clean_number) > 10:
@@ -171,10 +172,15 @@ def dispatch_sms_otp(mobile_number, otp_code):
     fast2sms_api_key = "3ejFKAYCvhkGHubUr5fD7cE8IsRBLQdJaP1t69lZVOXiwx2SygMghCGvd5RI6z2TD738waUqmfAEukcN"
     
     url = "https://www.fast2sms.com/dev/bulkV2"
-    payload = f"variables_values={otp_code}&route=otp&numbers={clean_number}"
+    
+    payload = {
+        "message": f"Your Nexus Pro verification code is {otp_code}. Do not share this with anyone.",
+        "route": "q",
+        "numbers": clean_number
+    }
+    
     headers = {
-        'authorization': fast2sms_api_key,
-        'Content-Type': "application/x-www-form-urlencoded"
+        'authorization': fast2sms_api_key
     }
     
     try:
