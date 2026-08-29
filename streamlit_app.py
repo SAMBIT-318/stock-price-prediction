@@ -17,15 +17,15 @@ from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, GetOrdersRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 
-# --- 1. PAGE SETUP & GLASSMORPHIC UI THEME ---
+# --- 1. PAGE SETUP & MOOMOO UI THEME ---
 st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
-    /* Global Background Gradient */
+    /* Global Moomoo Dark Background */
     .stApp {
-        background: radial-gradient(circle at 10% 20%, rgba(13, 20, 32, 0.95) 0%, rgba(5, 8, 15, 1) 90%);
-        color: #e0e6ed;
+        background-color: #131722;
+        color: #d1d4dc;
     }
 
     /* Screen Width Expansion */
@@ -39,96 +39,85 @@ st.markdown("""
 
     /* Typography */
     .main-header { 
-        font-size: 3.2rem; 
-        font-weight: 800; 
-        background: linear-gradient(90deg, #00d09c, #00f0ff);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        font-size: 2.2rem; 
+        font-weight: 700; 
+        color: #ffffff;
         letter-spacing: -0.5px; 
         margin-bottom: 0px;
     }
     .sub-header { 
-        font-size: 1.25rem; 
-        color: #8c9ba5; 
+        font-size: 1.1rem; 
+        color: #8a93a6; 
         margin-bottom: 25px;
     }
 
-    /* Glassmorphism Containers */
-    .glass-panel {
-        background: rgba(255, 255, 255, 0.03) !important;
-        backdrop-filter: blur(16px) !important;
-        -webkit-backdrop-filter: blur(16px) !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-        border-radius: 14px !important;
-        padding: 24px !important;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+    /* Moomoo Solid Panels (Replaces Glass) */
+    .moomoo-panel {
+        background-color: #1e222d !important;
+        border: 1px solid #2b3139 !important;
+        border-radius: 6px !important;
+        padding: 20px !important;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
         margin-bottom: 1rem;
     }
 
-    .glass-metric {
-        background: rgba(255, 255, 255, 0.02);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(0, 208, 156, 0.15);
-        border-radius: 12px;
-        padding: 16px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    }
-
-    /* Glass Tabs Styling */
+    /* Moomoo Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 1.2rem;
-        background: rgba(255, 255, 255, 0.02);
-        padding: 8px 16px;
-        border-radius: 16px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        backdrop-filter: blur(12px);
+        gap: 0px;
+        background-color: transparent;
+        padding: 0;
+        border-bottom: 1px solid #2b3139;
     }
 
     .stTabs [data-baseweb="tab-list"] button {
         background: transparent !important;
-        border-radius: 10px !important;
-        color: #9aa0a6 !important;
-        font-size: 1.15rem !important;
+        border-radius: 0px !important;
+        color: #8a93a6 !important;
+        font-size: 1.05rem !important;
         font-weight: 600 !important;
-        padding: 10px 18px !important;
-        transition: all 0.3s ease;
+        padding: 12px 20px !important;
+        transition: all 0.2s ease;
+        border: none !important;
     }
 
     .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
-        background: rgba(0, 208, 156, 0.12) !important;
-        border: 1px solid rgba(0, 208, 156, 0.4) !important;
-        color: #00d09c !important;
-        box-shadow: 0 0 15px rgba(0, 208, 156, 0.25);
+        color: #FF6933 !important; /* Moomoo Orange */
+        border-bottom: 2px solid #FF6933 !important;
+        background-color: rgba(255, 105, 51, 0.05) !important;
     }
 
-    /* Glass Input Fields & Buttons */
+    /* Input Fields */
     div[data-baseweb="input"] {
-        background: rgba(255, 255, 255, 0.03) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1) !important;
-        border-radius: 10px !important;
+        background-color: #131722 !important;
+        border: 1px solid #2b3139 !important;
+        border-radius: 4px !important;
         color: #ffffff !important;
     }
 
+    /* Moomoo Primary Buttons */
     .stButton > button {
-        background: linear-gradient(135deg, rgba(0, 208, 156, 0.2), rgba(0, 240, 255, 0.2)) !important;
-        border: 1px solid rgba(0, 208, 156, 0.4) !important;
+        background-color: #FF6933 !important;
+        border: none !important;
         color: #ffffff !important;
-        border-radius: 10px !important;
+        border-radius: 4px !important;
         font-weight: 600 !important;
-        backdrop-filter: blur(8px) !important;
-        transition: all 0.3s ease !important;
+        transition: background-color 0.2s ease !important;
     }
     .stButton > button:hover {
-        background: linear-gradient(135deg, rgba(0, 208, 156, 0.4), rgba(0, 240, 255, 0.4)) !important;
-        box-shadow: 0 0 20px rgba(0, 208, 156, 0.4) !important;
-        transform: translateY(-1px);
+        background-color: #ff8555 !important;
+        transform: none;
+        box-shadow: none !important;
     }
 
-    /* Sidebar Glass Overhaul */
+    /* Sidebar Moomoo Theme */
     [data-testid="stSidebar"] {
-        background: rgba(10, 14, 23, 0.75) !important;
-        backdrop-filter: blur(20px) !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+        background-color: #1e222d !important;
+        border-right: 1px solid #2b3139 !important;
+    }
+    
+    /* Metrics overriding */
+    [data-testid="stMetricValue"] {
+        color: #ffffff;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -175,7 +164,6 @@ def dispatch_sms_otp(mobile_number, otp_code):
     """
     Dispatches OTP via Fast2SMS API in real-time.
     """
-    # Ensure number is 10 digits clean
     clean_number = "".join(filter(str.isdigit, str(mobile_number)))
     if len(clean_number) > 10:
         clean_number = clean_number[-10:]
@@ -219,19 +207,19 @@ if "reg_mobile_pending" not in st.session_state:
 if "reg_pass_pending" not in st.session_state:
     st.session_state["reg_pass_pending"] = ""
 
-# --- 3. AUTHENTICATION UI (GLASS LOGIN / REGISTER) ---
+# --- 3. AUTHENTICATION UI ---
 def auth_screen():
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown('<div align="center"><h1 class="main-header">Nexus Pro | Access Gateway ⚡</h1></div>', unsafe_allow_html=True)
-    st.markdown('<div align="center"><p class="sub-header">Institutional Grade Multi-Asset Trading Terminal</p></div>', unsafe_allow_html=True)
+    st.markdown('<div align="center"><h1 class="main-header">Nexus Pro Trading</h1></div>', unsafe_allow_html=True)
+    st.markdown('<div align="center"><p class="sub-header">Advanced Execution & Analytics Terminal</p></div>', unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.3, 1])
     with col2:
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        tab_login, tab_register = st.tabs(["🔐 Secure Login", "📝 New Registration"])
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
+        tab_login, tab_register = st.tabs(["Secure Login", "Open Account"])
         
         with tab_login:
-            st.markdown("### Account Login")
+            st.markdown("<br>### Account Login", unsafe_allow_html=True)
             log_mobile = st.text_input("Mobile Number", key="log_mobile", placeholder="Enter your registered mobile")
             log_password = st.text_input("Password", type="password", key="log_pass", placeholder="Enter your password")
             
@@ -240,8 +228,7 @@ def auth_screen():
                 if log_mobile and log_password:
                     result = login_user(log_mobile, log_password)
                     if result:
-                        st.success("Authentication successful! Loading live workspace...")
-                        st.balloons()
+                        st.success("Authentication successful! Loading workspace...")
                         time.sleep(1)
                         st.session_state["logged_in"] = True
                         st.session_state["current_user"] = log_mobile
@@ -252,7 +239,7 @@ def auth_screen():
                     st.warning("Please complete all fields.")
 
         with tab_register:
-            st.markdown("### Register Account")
+            st.markdown("<br>### Register Account", unsafe_allow_html=True)
             
             if not st.session_state["otp_sent"]:
                 reg_mobile = st.text_input("Mobile Number", key="reg_mobile", placeholder="10-digit mobile number")
@@ -283,7 +270,6 @@ def auth_screen():
                         st.warning("Please fill out all registration fields.")
             else:
                 st.success(f"SMS Verification code has been dispatched to **{st.session_state['reg_mobile_pending']}**.")
-                st.caption("Please check your mobile SMS inbox.")
                 
                 entered_otp = st.text_input("Enter 6-digit Code Received", key="entered_otp", max_chars=6)
                 
@@ -309,10 +295,10 @@ def auth_screen():
         
         st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 4. MAIN APPLICATION DASHBOARD (GLASS THEME) ---
+# --- 4. MAIN APPLICATION DASHBOARD ---
 def main_app():
-    st.markdown('<div class="main-header">Nexus Pro | Global Markets ⚡</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">Live Telemetry, Options Chains, AI Price Engine & Alpaca Brokerage</div>', unsafe_allow_html=True)
+    st.markdown('<div class="main-header">Nexus Pro Markets</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Live Telemetry & Execution Desk</div>', unsafe_allow_html=True)
 
     try:
         api_key = st.secrets.get("ALPACA_API_KEY", "")
@@ -321,17 +307,17 @@ def main_app():
         api_key = ""
         secret_key = ""
 
-    # --- SIDEBAR GLASS CONFIGURATION ---
+    # --- SIDEBAR CONFIGURATION ---
     with st.sidebar:
-        st.markdown('<div class="glass-panel" style="padding:15px !important;">', unsafe_allow_html=True)
-        st.success(f"👤 Trader: **{st.session_state['current_user']}**")
-        if st.button("🚪 Logout Session", type="primary", use_container_width=True):
+        st.markdown('<div class="moomoo-panel" style="padding:15px !important;">', unsafe_allow_html=True)
+        st.write(f"👤 Account: **{st.session_state['current_user']}**")
+        if st.button("Logout", type="primary", use_container_width=True):
             st.session_state["logged_in"] = False
             st.session_state["current_user"] = ""
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
         
-        st.header("⚡ Watchlist & Ticker")
+        st.header("Watchlist & Ticker")
         
         market_assets = {
             "Custom Ticker Search": "Custom",
@@ -366,16 +352,16 @@ def main_app():
             
         timeframe = st.selectbox("Historical Lookback:", ["6mo", "1y", "2y", "5y"], index=2)
         
-        if st.button("🔄 Force Refresh Data", use_container_width=True):
+        if st.button("Force Refresh Data", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
         
         st.divider()
         if api_key and secret_key:
-            st.success("🟢 Alpaca Paper Gateway Online")
+            st.success("Alpaca Broker Online")
         else:
-            st.error("🔴 Broker Disconnected")
-            st.caption("Add ALPACA_API_KEY to Streamlit Secrets to trade.")
+            st.error("Broker Disconnected")
+            st.caption("Add ALPACA_API_KEY to secrets to trade.")
 
     # --- TECHNICAL ENGINE ---
     @st.cache_data(show_spinner="Syncing live exchange order flow...")
@@ -434,7 +420,7 @@ def main_app():
     df, stock_info, news_data = fetch_market_data(ticker, timeframe)
 
     if df.empty:
-        st.error(f"⚠️ Market telemetry unavailable for '{ticker}'. Please verify the symbol.")
+        st.error(f"Market telemetry unavailable for '{ticker}'. Please verify the symbol.")
         st.stop()
 
     last_close = float(df['Close'].iloc[-1])
@@ -443,19 +429,19 @@ def main_app():
     change_pct = (change_val / prev_close) * 100
     currency_sym = "₹" if ".NS" in ticker or ".BO" in ticker or "^NSE" in ticker or "^BSE" in ticker else "$"
 
-    # --- GLASS TABS ---
+    # --- TABS ---
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-        "📈 Interactive Analytics", 
-        "🎯 Options Chain",
-        "🏢 Valuation & Fundamentals", 
-        "💼 Live Portfolio", 
-        "⚡ Trade Station",
-        "🧪 Strategy Backtester"
+        "Detailed Quotes", 
+        "Options Chain",
+        "Fundamentals", 
+        "Live Portfolio", 
+        "Trade Station",
+        "Strategy Backtester"
     ])
 
     # [TAB 1: ADVANCED CHARTING]
     with tab1:
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Spot Price", f"{currency_sym}{last_close:.2f}", f"{change_val:+.2f} ({change_pct:+.2f}%)")
         c2.metric("Day High", f"{currency_sym}{df['High'].iloc[-1]:.2f}")
@@ -463,40 +449,51 @@ def main_app():
         c4.metric("Trading Volume", f"{int(df['Volume'].iloc[-1]):,}")
         st.markdown('</div>', unsafe_allow_html=True)
         
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
         fig = make_subplots(
             rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.03, 
             row_heights=[0.65, 0.15, 0.20],
-            subplot_titles=(f"{ticker} Price Action & Volatility Bands", "Volume Telemetry", "MACD Momentum Oscillator")
+            subplot_titles=(f"{ticker} Quote & Volatility", "Volume", "MACD Momentum")
         )
         
-        fig.add_trace(go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], line=dict(color='#ffa726', width=1.5), name='SMA 20'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], line=dict(color='#29b6f6', width=1.5), name='SMA 50'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Upper'], line=dict(color='rgba(255,255,255,0.2)', width=1), name='BB Upper'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Lower'], line=dict(color='rgba(255,255,255,0.2)', width=1), fill='tonexty', fillcolor='rgba(255,255,255,0.03)', name='BB Lower'), row=1, col=1)
+        # Moomoo Candlestick Colors (Green Up, Red Down)
+        fig.add_trace(go.Candlestick(
+            x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], 
+            name='Price',
+            increasing_line_color='#2EBD85', decreasing_line_color='#F6465D'
+        ), row=1, col=1)
         
-        colors = ['#00d09c' if c >= o else '#ff5050' for c, o in zip(df['Close'], df['Open'])]
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], line=dict(color='#F2B602', width=1.5), name='MA 20'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], line=dict(color='#8F52E3', width=1.5), name='MA 50'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Upper'], line=dict(color='rgba(255,255,255,0.1)', width=1), name='BB Upper'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Lower'], line=dict(color='rgba(255,255,255,0.1)', width=1), fill='tonexty', fillcolor='rgba(255,255,255,0.03)', name='BB Lower'), row=1, col=1)
+        
+        colors = ['#2EBD85' if c >= o else '#F6465D' for c, o in zip(df['Close'], df['Open'])]
         fig.add_trace(go.Bar(x=df['Date'], y=df['Volume'], marker_color=colors, name='Volume', showlegend=False), row=2, col=1)
         
-        macd_colors = ['#00d09c' if h >= 0 else '#ff5050' for h in df['MACD_Hist']]
+        macd_colors = ['#2EBD85' if h >= 0 else '#F6465D' for h in df['MACD_Hist']]
         fig.add_trace(go.Bar(x=df['Date'], y=df['MACD_Hist'], marker_color=macd_colors, name='MACD Hist', showlegend=False), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], line=dict(color='#00e5ff', width=1.5), name='MACD Line'), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD_Signal'], line=dict(color='#ff9100', width=1.5), name='Signal Line'), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], line=dict(color='#00e5ff', width=1.5), name='MACD'), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD_Signal'], line=dict(color='#ff9100', width=1.5), name='Signal'), row=3, col=1)
         
         fig.update_layout(
             template="plotly_dark", 
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
+            paper_bgcolor="#1e222d",
+            plot_bgcolor="#1e222d",
+            font=dict(color="#d1d4dc"),
             height=850, 
             margin=dict(l=10, r=10, t=30, b=10), 
             xaxis_rangeslider_visible=False
         )
+        # Update grid colors for Moomoo look
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#2b3139')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#2b3139')
+        
         st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.subheader("🤖 Neural Price Target & AI Signal")
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
+        st.subheader("Neural Target & AI Signal")
         ml_df = df[['Close', 'SMA_20', 'SMA_50', 'RSI', 'MACD']].dropna().copy()
         ml_df['Target'] = ml_df['Close'].shift(-1)
         ml_features = ml_df.dropna()
@@ -513,22 +510,22 @@ def main_app():
             ai1, ai2 = st.columns([1, 3])
             ai1.metric("Predicted Target", f"{currency_sym}{predicted_target:.2f}", f"{predicted_target - last_close:+.2f}")
             ai2.info(
-                f"**Signal State:** {'🟢 BULLISH ACCUMULATION' if predicted_target > last_close else '🔴 BEARISH DISTRIBUTION'}. "
+                f"**Signal State:** {'🟢 BULLISH' if predicted_target > last_close else '🔴 BEARISH'}. "
                 f"RSI oscillator stands at **{df['RSI'].iloc[-1]:.1f}** | MACD: **{df['MACD'].iloc[-1]:.2f}**."
             )
         st.markdown('</div>', unsafe_allow_html=True)
 
     # [TAB 2: OPTIONS CHAIN]
     with tab2:
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.subheader(f"🎯 Options Telemetry Matrix: {ticker}")
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
+        st.subheader(f"Options Matrix: {ticker}")
         try:
             stock_obj = yf.Ticker(ticker)
             expirations = stock_obj.options
             if expirations:
                 col_exp, col_opt_type = st.columns([1, 2])
                 selected_exp = col_exp.selectbox("Expiration Date:", expirations)
-                opt_type = col_opt_type.radio("Derivative Class:", ["Calls (Bullish)", "Puts (Bearish)"], horizontal=True)
+                opt_type = col_opt_type.radio("Derivative Class:", ["Calls", "Puts"], horizontal=True)
                 
                 chain = stock_obj.option_chain(selected_exp)
                 opt_df = chain.calls if "Calls" in opt_type else chain.puts
@@ -560,8 +557,8 @@ def main_app():
 
     # [TAB 3: VALUATION & FUNDAMENTALS]
     with tab3:
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.subheader(f"🏢 Fundamental & Valuation Telemetry: {ticker}")
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
+        st.subheader(f"Company Valuation: {ticker}")
         f1, f2, f3, f4 = st.columns(4)
         f1.metric("Market Cap", f"{currency_sym}{stock_info.get('marketCap', 0):,}")
         f2.metric("Trailing P/E", f"{stock_info.get('trailingPE', 'N/A')}")
@@ -576,8 +573,8 @@ def main_app():
         f8.metric("Operating Margin", f"{(stock_info.get('profitMargins', 0) or 0)*100:.2f}%")
         st.markdown('</div>', unsafe_allow_html=True)
         
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.subheader("📰 Market Intelligence & News Flow")
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
+        st.subheader("Market News")
         if news_data:
             n_col1, n_col2 = st.columns(2)
             for i, item in enumerate(news_data):
@@ -592,10 +589,10 @@ def main_app():
 
     # [TAB 4: LIVE PORTFOLIO]
     with tab4:
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.subheader("💼 Live Execution Account Portfolio")
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
+        st.subheader("Live Execution Portfolio")
         if not api_key or not secret_key:
-            st.error("⚠️ Alpaca Trading API credentials missing in Secrets.")
+            st.error("Alpaca Trading API credentials missing.")
         else:
             try:
                 client = TradingClient(api_key, secret_key, paper=True)
@@ -608,7 +605,7 @@ def main_app():
                 p4.metric("Daytrade Power", f"${float(dt_power or 0.0):,.2f}")
                 
                 st.divider()
-                st.subheader("📊 Open Positions")
+                st.subheader("Open Positions")
                 positions = client.get_all_positions()
                 if not positions:
                     st.info("No active open positions in this account.")
@@ -623,13 +620,13 @@ def main_app():
                         'Market Value': '${:.2f}', 'Unrealized P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
                     }), use_container_width=True, height=550, hide_index=True)
             except Exception as e:
-                st.error(f"❌ Connection Failed: {e}")
+                st.error(f"Connection Failed: {e}")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # [TAB 5: TRADE STATION]
     with tab5:
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.subheader(f"⚡ Execution Desk: {ticker}")
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
+        st.subheader(f"Execution Desk: {ticker}")
         t_col1, t_col2 = st.columns([1, 1.5]) 
         with t_col1:
             st.info(f"**Live Quote:** {currency_sym}{last_close:.2f}")
@@ -648,11 +645,11 @@ def main_app():
             is_foreign = "^" in ticker or "=F" in ticker or ".NS" in ticker or ".BO" in ticker
             
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🚀 Transmit Order to Alpaca", use_container_width=True, type="primary"):
+            if st.button("Transmit Order to Alpaca", use_container_width=True, type="primary"):
                 if not api_key or not secret_key:
-                    st.error("⚠️ Alpaca API Keys missing in Secrets.")
+                    st.error("Alpaca API Keys missing.")
                 elif is_foreign:
-                    st.error("❌ Broker Rejection: Alpaca US broker does not support foreign equities/indices.")
+                    st.error("Broker Rejection: Alpaca US broker does not support foreign equities/indices.")
                 else:
                     try:
                         trading_client = TradingClient(api_key, secret_key, paper=True)
@@ -662,11 +659,11 @@ def main_app():
                         else:
                             order_payload = MarketOrderRequest(symbol=ticker, qty=order_qty, side=side_choice, time_in_force=TimeInForce.DAY)
                         submitted = trading_client.submit_order(order_data=order_payload)
-                        st.success(f"✅ Order Transmitted! ID: `{submitted.id}`")
+                        st.success(f"Order Transmitted! ID: `{submitted.id}`")
                     except Exception as e:
-                        st.error(f"❌ Routing Rejected: {e}")
+                        st.error(f"Routing Rejected: {e}")
         with t_col2:
-            st.write("### Account Liquidity Snapshot")
+            st.write("### Account Liquidity")
             if api_key and secret_key:
                 try:
                     client = TradingClient(api_key, secret_key, paper=True)
@@ -677,7 +674,7 @@ def main_app():
                     l_col2.metric("Available Buying Power", f"${float(account_meta.buying_power or 0.0):,.2f}")
                     
                     st.divider()
-                    st.write("### Order Execution Log")
+                    st.write("### Execution Log")
                     order_req = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=30)
                     orders = client.get_orders(filter=order_req)
                     if orders:
@@ -697,8 +694,8 @@ def main_app():
 
     # [TAB 6: BACKTESTER]
     with tab6:
-        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-        st.subheader(f"🧪 Algorithmic Strategy Simulator: {ticker}")
+        st.markdown('<div class="moomoo-panel">', unsafe_allow_html=True)
+        st.subheader(f"Strategy Simulator: {ticker}")
         b_df = df[['Date', 'Close', 'SMA_20', 'SMA_50']].dropna().copy()
         if len(b_df) > 50:
             b_df['Signal'] = np.where(b_df['SMA_20'] > b_df['SMA_50'], 1, 0)
@@ -712,17 +709,21 @@ def main_app():
             max_drawdown = ((strat_cum - peak) / peak).min() * 100
             
             b_fig = go.Figure()
-            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Strategy'] * 100, name='SMA Crossover Alpha', line=dict(color='#00d09c', width=2.5)))
+            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Strategy'] * 100, name='SMA Crossover Alpha', line=dict(color='#FF6933', width=2.5)))
             b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Market'] * 100, name='Buy & Hold Benchmark', line=dict(color='#888888', width=2, dash='dot')))
             
             b_fig.update_layout(
                 template="plotly_dark", 
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
+                paper_bgcolor="#1e222d",
+                plot_bgcolor="#1e222d",
+                font=dict(color="#d1d4dc"),
                 height=750, 
                 yaxis_title="Cumulative Return (%)", 
                 margin=dict(l=10, r=10, t=30, b=10)
             )
+            b_fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#2b3139')
+            b_fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#2b3139')
+            
             st.plotly_chart(b_fig, use_container_width=True)
             
             r1, r2, r3, r4 = st.columns(4)
