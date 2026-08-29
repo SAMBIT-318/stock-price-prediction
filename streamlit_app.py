@@ -165,8 +165,8 @@ def dispatch_sms_otp(mobile_number, otp_code):
     Dispatches OTP via Twilio API in real-time.
     """
     # 1. Paste your Account SID and Auth Token inside the quotes below
-    account_sid = "PASTE_YOUR_ACCOUNT_SID_HERE"
-    auth_token = "PASTE_YOUR_AUTH_TOKEN_HERE"
+    account_sid = "SKe8ac5dca9b689f80bbae60f8b61bc86c"
+    auth_token = "etb36iRaapb4Ic3WRE5w4C9HtFTl9SmW"
     
     # Your Twilio phone number
     twilio_number = "+17372508034" 
