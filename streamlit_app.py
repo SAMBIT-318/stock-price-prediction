@@ -18,17 +18,30 @@ from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 # --- 1. PAGE SETUP & MODERN UI THEME ---
 st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="expanded")
 
+# Added CSS to force the container to take up maximum screen width and length
 st.markdown("""
     <style>
+    /* Expand the main block container to full width and reduce padding */
+    .block-container {
+        max-width: 98% !important;
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        padding-left: 1rem !important;
+        padding-right: 1rem !important;
+    }
     .main-header { font-size: 3rem; font-weight: 800; color: #00d09c; letter-spacing: -0.5px; margin-bottom: 0px;}
     .sub-header { font-size: 1.5rem; color: #9aa0a6; margin-bottom: 20px;}
-    /* Adjust Streamlit tab label size */
+    /* Adjust Streamlit tab label size to be wider and more prominent */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2rem;
+    }
     .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p,
     .stTabs [data-baseweb="tab-list"] button div,
     .stTabs [data-baseweb="tab-list"] button span,
     .stTabs [data-baseweb="tab"] {
-        font-size: 1.5rem !important;
+        font-size: 1.6rem !important;
         font-weight: 700 !important;
+        padding-bottom: 1rem !important;
     }
     .stat-box { background-color: #1e222d; padding: 12px; border-radius: 8px; border: 1px solid #2a2e39;}
     .auth-box { max-width: 400px; margin: 0 auto; padding: 2rem; background-color: #1e222d; border-radius: 10px; border: 1px solid #00d09c; box-shadow: 0 4px 15px rgba(0,208,156,0.2);}
@@ -78,7 +91,7 @@ def auth_screen():
     st.markdown('<div align="center"><h1 class="main-header">Nexus Pro | Access Gateway ⚡</h1></div>', unsafe_allow_html=True)
     st.markdown('<div align="center"><p class="sub-header">Secure Authentication Required</p></div>', unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         tab1, tab2 = st.tabs(["🔐 Login", "📝 Register"])
         
@@ -180,7 +193,7 @@ def main_app():
             
         timeframe = st.selectbox("Historical Lookback:", ["6mo", "1y", "2y", "5y"], index=2)
         
-        if st.button("🔄 Force Refresh Data"):
+        if st.button("🔄 Force Refresh Data", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
         
@@ -278,15 +291,16 @@ def main_app():
         col_metric4.metric("Trading Volume", f"{int(df['Volume'].iloc[-1]):,}")
         
         st.divider()
+        # Increased height from 700 to 900 for a much larger window fit
         fig = make_subplots(
             rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.03, 
-            row_heights=[0.60, 0.20, 0.20],
+            row_heights=[0.65, 0.15, 0.20],
             subplot_titles=(f"{ticker} Price Action & Volatility Bands", "Volume Telemetry", "MACD Momentum Oscillator")
         )
         
         fig.add_trace(go.Candlestick(x=df['Date'], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], name='Price'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], line=dict(color='#ffa726', width=1.2), name='SMA 20'), row=1, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], line=dict(color='#29b6f6', width=1.2), name='SMA 50'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_20'], line=dict(color='#ffa726', width=1.5), name='SMA 20'), row=1, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['SMA_50'], line=dict(color='#29b6f6', width=1.5), name='SMA 50'), row=1, col=1)
         fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Upper'], line=dict(color='rgba(255,255,255,0.2)', width=1), name='BB Upper'), row=1, col=1)
         fig.add_trace(go.Scatter(x=df['Date'], y=df['BB_Lower'], line=dict(color='rgba(255,255,255,0.2)', width=1), fill='tonexty', fillcolor='rgba(255,255,255,0.03)', name='BB Lower'), row=1, col=1)
         
@@ -295,10 +309,11 @@ def main_app():
         
         macd_colors = ['#00d09c' if h >= 0 else '#ff5050' for h in df['MACD_Hist']]
         fig.add_trace(go.Bar(x=df['Date'], y=df['MACD_Hist'], marker_color=macd_colors, name='MACD Hist', showlegend=False), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], line=dict(color='#00e5ff', width=1.2), name='MACD Line'), row=3, col=1)
-        fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD_Signal'], line=dict(color='#ff9100', width=1.2), name='Signal Line'), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], line=dict(color='#00e5ff', width=1.5), name='MACD Line'), row=3, col=1)
+        fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD_Signal'], line=dict(color='#ff9100', width=1.5), name='Signal Line'), row=3, col=1)
         
-        fig.update_layout(template="plotly_dark", height=700, margin=dict(l=0, r=0, t=30, b=0), xaxis_rangeslider_visible=False)
+        # Updated height to 900 for larger display
+        fig.update_layout(template="plotly_dark", height=900, margin=dict(l=10, r=10, t=40, b=10), xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
         
         st.subheader("🤖 Neural Price Target & AI Signal")
@@ -315,7 +330,7 @@ def main_app():
             last_features = np.array([[last_close, df['SMA_20'].iloc[-1], df['SMA_50'].iloc[-1], df['RSI'].iloc[-1], df['MACD'].iloc[-1]]])
             predicted_target = rf.predict(last_features)[0]
             
-            c_ai1, c_ai2 = st.columns([1, 2])
+            c_ai1, c_ai2 = st.columns([1, 3])
             c_ai1.metric("Predicted Next Session Target", f"{currency_sym}{predicted_target:.2f}", f"{predicted_target - last_close:+.2f}")
             c_ai2.info(
                 f"**Model Signal:** {'BULLISH 🟢' if predicted_target > last_close else 'BEARISH 🔴'}. "
@@ -330,7 +345,7 @@ def main_app():
             stock_obj = yf.Ticker(ticker)
             expirations = stock_obj.options
             if expirations:
-                col_exp, col_opt_type = st.columns([2, 1])
+                col_exp, col_opt_type = st.columns([2, 2])
                 selected_exp = col_exp.selectbox("Select Expiration Date:", expirations)
                 opt_type = col_opt_type.radio("Option Type:", ["Calls (Bullish)", "Puts (Bearish)"], horizontal=True)
                 
@@ -343,6 +358,7 @@ def main_app():
                     opt_view.fillna(0, inplace=True)
                     opt_view['impliedVolatility'] = opt_view['impliedVolatility'] * 100
                     
+                    # Increased height of dataframe to 700 to fill window
                     st.dataframe(
                         opt_view.style.format({
                             'strike': f'{currency_sym}{{:,.2f}}',
@@ -352,7 +368,7 @@ def main_app():
                             'volume': '{:,.0f}',
                             'openInterest': '{:,.0f}',
                             'impliedVolatility': '{:.2f}%'
-                        }), use_container_width=True, hide_index=True
+                        }), use_container_width=True, height=700, hide_index=True
                     )
                 else:
                     st.info("No options data returned for this expiration.")
@@ -370,6 +386,8 @@ def main_app():
         f3.metric("Forward P/E Ratio", f"{stock_info.get('forwardPE', 'N/A')}")
         f4.metric("Beta (Volatility)", f"{stock_info.get('beta', 'N/A')}")
         
+        st.markdown("<br>", unsafe_allow_html=True)
+        
         f5, f6, f7, f8 = st.columns(4)
         f5.metric("52-Week High", f"{currency_sym}{stock_info.get('fiftyTwoWeekHigh', 'N/A')}")
         f6.metric("52-Week Low", f"{currency_sym}{stock_info.get('fiftyTwoWeekLow', 'N/A')}")
@@ -379,10 +397,14 @@ def main_app():
         st.divider()
         st.subheader("📰 Live Market News")
         if news_data:
-            for item in news_data:
-                st.markdown(f"#### [{item['title']}]({item['link']})")
-                st.caption(f"Source: **{item['publisher']}**")
-                st.write("---")
+            # Displaying news in two columns to utilize wide width better
+            n_col1, n_col2 = st.columns(2)
+            for i, item in enumerate(news_data):
+                col = n_col1 if i % 2 == 0 else n_col2
+                with col:
+                    st.markdown(f"#### [{item['title']}]({item['link']})")
+                    st.caption(f"Source: **{item['publisher']}**")
+                    st.write("---")
         else:
             st.write("No exact live news items could be routed for this ticker at this moment.")
 
@@ -413,17 +435,18 @@ def main_app():
                         'Current Price': float(p.current_price), 'Market Value': float(p.market_value),
                         'Unrealized P&L ($)': float(p.unrealized_pl), 'P&L (%)': float(p.unrealized_plpc) * 100
                     } for p in positions]
+                    # Make dataframe taller
                     st.dataframe(pd.DataFrame(pos_list).style.format({
                         'Shares': '{:.2f}', 'Entry Price': '${:.2f}', 'Current Price': '${:.2f}',
                         'Market Value': '${:.2f}', 'Unrealized P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
-                    }), use_container_width=True, hide_index=True)
+                    }), use_container_width=True, height=500, hide_index=True)
             except Exception as e:
                 st.error(f"❌ Account Connection Failed: {e}")
 
     # [TAB 5: TRADE STATION]
     with tab5:
         st.subheader(f"⚡ Execution Desk: {ticker}")
-        t_col1, t_col2 = st.columns(2)
+        t_col1, t_col2 = st.columns([1, 1.5]) # Adjusted ratio for better width utilization
         with t_col1:
             st.info(f"**Live Exchange Quote:** {currency_sym}{last_close:.2f}")
             order_style = st.selectbox("Order Routing Type", ["Market Order", "Limit Order"])
@@ -440,7 +463,9 @@ def main_app():
             st.write(f"**Gross Order Notional:** {currency_sym}{est_value:,.2f}")
             is_foreign = "^" in ticker or "=F" in ticker or ".NS" in ticker or ".BO" in ticker
             
-            if st.button("🚀 Transmit Order to Alpaca"):
+            st.markdown("<br>", unsafe_allow_html=True)
+            
+            if st.button("🚀 Transmit Order to Alpaca", use_container_width=True, type="primary"):
                 if not api_key or not secret_key:
                     st.error("⚠️ Alpaca API Keys missing.")
                 elif is_foreign:
@@ -463,8 +488,26 @@ def main_app():
                 try:
                     client = TradingClient(api_key, secret_key, paper=True)
                     account_meta = client.get_account()
-                    st.metric("Total Equity", f"${float(account_meta.equity or 0.0):,.2f}")
-                    st.metric("Available Buying Power", f"${float(account_meta.buying_power or 0.0):,.2f}")
+                    
+                    l_col1, l_col2 = st.columns(2)
+                    l_col1.metric("Total Equity", f"${float(account_meta.equity or 0.0):,.2f}")
+                    l_col2.metric("Available Buying Power", f"${float(account_meta.buying_power or 0.0):,.2f}")
+                    
+                    st.divider()
+                    st.write("### Recent Transactions")
+                    order_req = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=20)
+                    orders = client.get_orders(filter=order_req)
+                    if orders:
+                        ord_list = [{
+                            'Time': o.created_at.strftime('%Y-%m-%d %H:%M') if o.created_at else 'N/A',
+                            'Symbol': o.symbol,
+                            'Side': str(o.side).split('.')[-1].upper(),
+                            'Qty': float(o.qty) if o.qty else 0.0,
+                            'Status': str(o.status).split('.')[-1].upper()
+                        } for o in orders]
+                        st.dataframe(pd.DataFrame(ord_list), use_container_width=True, height=350, hide_index=True)
+                    else:
+                        st.info("No recent transactions found.")
                 except Exception:
                     st.warning("Could not sync live account data.")
 
@@ -484,15 +527,17 @@ def main_app():
             max_drawdown = ((strat_cum - peak) / peak).min() * 100
             
             b_fig = go.Figure()
-            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Strategy'] * 100, name='SMA Crossover', line=dict(color='#00d09c', width=2)))
-            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Market'] * 100, name='Buy & Hold', line=dict(color='#888888', width=1.5, dash='dot')))
-            b_fig.update_layout(template="plotly_dark", height=420, yaxis_title="Cumulative Return (%)", margin=dict(l=0, r=0, t=20, b=0))
+            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Strategy'] * 100, name='SMA Crossover', line=dict(color='#00d09c', width=2.5)))
+            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Market'] * 100, name='Buy & Hold', line=dict(color='#888888', width=2, dash='dot')))
+            # Increased height to 700 for a larger simulator view
+            b_fig.update_layout(template="plotly_dark", height=700, yaxis_title="Cumulative Return (%)", margin=dict(l=10, r=10, t=30, b=10))
             st.plotly_chart(b_fig, use_container_width=True)
             
-            r1, r2, r3 = st.columns(3)
+            r1, r2, r3, r4 = st.columns(4)
             r1.metric("Strategy Net Return", f"{b_df['Cum_Strategy'].iloc[-1] * 100:+.2f}%")
             r2.metric("Buy & Hold Return", f"{b_df['Cum_Market'].iloc[-1] * 100:+.2f}%")
-            r3.metric("Max Drawdown (Risk)", f"{max_drawdown:.2f}%")
+            r3.metric("Alpha (Outperformance)", f"{(b_df['Cum_Strategy'].iloc[-1] - b_df['Cum_Market'].iloc[-1]) * 100:+.2f}%")
+            r4.metric("Max Drawdown (Risk)", f"{max_drawdown:.2f}%")
         else:
             st.info("Insufficient historical points to run complete backtest.")
 
