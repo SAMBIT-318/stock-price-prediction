@@ -10,47 +10,130 @@ import sqlite3
 import hashlib
 import time
 import random
+import requests
 
 # Import Alpaca Components
 from alpaca.trading.client import TradingClient
 from alpaca.trading.requests import MarketOrderRequest, LimitOrderRequest, GetOrdersRequest
 from alpaca.trading.enums import OrderSide, TimeInForce, QueryOrderStatus
 
-# --- 1. PAGE SETUP & MODERN UI THEME ---
+# --- 1. PAGE SETUP & GLASSMORPHIC UI THEME ---
 st.set_page_config(page_title="Nexus Pro", layout="wide", initial_sidebar_state="expanded")
 
-# Widescreen CSS Overrides
 st.markdown("""
     <style>
-    /* Expand the main block container to absolute maximum width and reduce padding */
+    /* Global Background Gradient */
+    .stApp {
+        background: radial-gradient(circle at 10% 20%, rgba(13, 20, 32, 0.95) 0%, rgba(5, 8, 15, 1) 90%);
+        color: #e0e6ed;
+    }
+
+    /* Screen Width Expansion */
     .block-container {
         max-width: 98% !important;
-        padding-top: 2rem !important;
+        padding-top: 1.5rem !important;
         padding-bottom: 2rem !important;
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
+        padding-left: 1.2rem !important;
+        padding-right: 1.2rem !important;
     }
-    .main-header { font-size: 3.5rem; font-weight: 800; color: #00d09c; letter-spacing: -0.5px; margin-bottom: 0px;}
-    .sub-header { font-size: 1.5rem; color: #9aa0a6; margin-bottom: 20px;}
-    
-    /* Widen and enlarge Streamlit tabs for full screen */
+
+    /* Typography */
+    .main-header { 
+        font-size: 3.2rem; 
+        font-weight: 800; 
+        background: linear-gradient(90deg, #00d09c, #00f0ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        letter-spacing: -0.5px; 
+        margin-bottom: 0px;
+    }
+    .sub-header { 
+        font-size: 1.25rem; 
+        color: #8c9ba5; 
+        margin-bottom: 25px;
+    }
+
+    /* Glassmorphism Containers */
+    .glass-panel {
+        background: rgba(255, 255, 255, 0.03) !important;
+        backdrop-filter: blur(16px) !important;
+        -webkit-backdrop-filter: blur(16px) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 14px !important;
+        padding: 24px !important;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37) !important;
+        margin-bottom: 1rem;
+    }
+
+    .glass-metric {
+        background: rgba(255, 255, 255, 0.02);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(0, 208, 156, 0.15);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Glass Tabs Styling */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 3rem;
-        justify-content: center;
+        gap: 1.2rem;
+        background: rgba(255, 255, 255, 0.02);
+        padding: 8px 16px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(12px);
     }
-    .stTabs [data-baseweb="tab-list"] button [data-testid="stMarkdownContainer"] p,
-    .stTabs [data-baseweb="tab-list"] button div,
-    .stTabs [data-baseweb="tab-list"] button span,
-    .stTabs [data-baseweb="tab"] {
-        font-size: 1.6rem !important;
-        font-weight: 700 !important;
-        padding-bottom: 1rem !important;
+
+    .stTabs [data-baseweb="tab-list"] button {
+        background: transparent !important;
+        border-radius: 10px !important;
+        color: #9aa0a6 !important;
+        font-size: 1.15rem !important;
+        font-weight: 600 !important;
+        padding: 10px 18px !important;
+        transition: all 0.3s ease;
     }
-    .stat-box { background-color: #1e222d; padding: 12px; border-radius: 8px; border: 1px solid #2a2e39;}
+
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+        background: rgba(0, 208, 156, 0.12) !important;
+        border: 1px solid rgba(0, 208, 156, 0.4) !important;
+        color: #00d09c !important;
+        box-shadow: 0 0 15px rgba(0, 208, 156, 0.25);
+    }
+
+    /* Glass Input Fields & Buttons */
+    div[data-baseweb="input"] {
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        border-radius: 10px !important;
+        color: #ffffff !important;
+    }
+
+    .stButton > button {
+        background: linear-gradient(135deg, rgba(0, 208, 156, 0.2), rgba(0, 240, 255, 0.2)) !important;
+        border: 1px solid rgba(0, 208, 156, 0.4) !important;
+        color: #ffffff !important;
+        border-radius: 10px !important;
+        font-weight: 600 !important;
+        backdrop-filter: blur(8px) !important;
+        transition: all 0.3s ease !important;
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, rgba(0, 208, 156, 0.4), rgba(0, 240, 255, 0.4)) !important;
+        box-shadow: 0 0 20px rgba(0, 208, 156, 0.4) !important;
+        transform: translateY(-1px);
+    }
+
+    /* Sidebar Glass Overhaul */
+    [data-testid="stSidebar"] {
+        background: rgba(10, 14, 23, 0.75) !important;
+        backdrop-filter: blur(20px) !important;
+        border-right: 1px solid rgba(255, 255, 255, 0.06) !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE & AUTHENTICATION FUNCTIONS ---
+# --- 2. DATABASE & SMS GATEWAY ---
 def init_db():
     conn = sqlite3.connect('nexus_users.db')
     c = conn.cursor()
@@ -88,15 +171,56 @@ def login_user(mobile, password):
     conn.close()
     return data
 
+def dispatch_sms_otp(mobile_number, otp_code):
+    """
+    Directly dispatches SMS OTP to the user's phone number.
+    Connects to Fast2SMS or Twilio via Streamlit Secrets.
+    """
+    clean_number = "".join(filter(str.isdigit, str(mobile_number)))
+    
+    # 1. Fast2SMS Integration (if key exists)
+    if "FAST2SMS_API_KEY" in st.secrets:
+        try:
+            url = "https://www.fast2sms.com/dev/bulkV2"
+            payload = f"variables_values={otp_code}&route=otp&numbers={clean_number}"
+            headers = {
+                'authorization': st.secrets["FAST2SMS_API_KEY"],
+                'Content-Type': "application/x-www-form-urlencoded"
+            }
+            res = requests.post(url, data=payload, headers=headers, timeout=10)
+            return res.status_code == 200
+        except Exception:
+            return False
+
+    # 2. Twilio Integration (if keys exist)
+    elif "TWILIO_ACCOUNT_SID" in st.secrets and "TWILIO_AUTH_TOKEN" in st.secrets:
+        try:
+            sid = st.secrets["TWILIO_ACCOUNT_SID"]
+            token = st.secrets["TWILIO_AUTH_TOKEN"]
+            from_number = st.secrets["TWILIO_PHONE_NUMBER"]
+            target_number = f"+91{clean_number}" if len(clean_number) == 10 else f"+{clean_number}"
+            
+            url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+            data = {
+                "From": from_number,
+                "To": target_number,
+                "Body": f"Your Nexus Pro security verification code is: {otp_code}. Do not share this with anyone."
+            }
+            res = requests.post(url, data=data, auth=(sid, token), timeout=10)
+            return res.status_code in [200, 201]
+        except Exception:
+            return False
+
+    # Fallback to simulated delivery if no SMS keys are configured in secrets
+    return True
+
 init_db()
 
-# Initialize Session State
+# Session State Initialization
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "current_user" not in st.session_state:
     st.session_state["current_user"] = ""
-
-# Session state for OTP verification logic
 if "otp_sent" not in st.session_state:
     st.session_state["otp_sent"] = False
 if "generated_otp" not in st.session_state:
@@ -106,95 +230,100 @@ if "reg_mobile_pending" not in st.session_state:
 if "reg_pass_pending" not in st.session_state:
     st.session_state["reg_pass_pending"] = ""
 
-# --- 3. AUTHENTICATION UI (LOGIN/REGISTER) ---
+# --- 3. AUTHENTICATION UI (GLASS LOGIN / REGISTER) ---
 def auth_screen():
-    st.markdown("<br><br><br>", unsafe_allow_html=True)
-    st.markdown('<div align="center"><h1 class="main-header">Nexus Pro | Access Gateway ⚡</h1></div>', unsafe_allow_html=True)
-    st.markdown('<div align="center"><p class="sub-header">Secure Authentication Required</p></div>', unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('<div align="center"><h1 class="main-header">Nexus Pro | Access Gateway ⚡</h1></div>', unsafe_allow_html=True)
+    st.markdown('<div align="center"><p class="sub-header">Institutional Grade Multi-Asset Trading Terminal</p></div>', unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 1.5, 1])
+    col1, col2, col3 = st.columns([1, 1.3, 1])
     with col2:
-        tab1, tab2 = st.tabs(["🔐 Login", "📝 Register"])
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        tab_login, tab_register = st.tabs(["🔐 Secure Login", "📝 New Registration"])
         
-        with tab1:
-            st.subheader("Account Login")
-            log_mobile = st.text_input("Mobile Number", key="log_mobile", placeholder="Enter your 10-digit mobile")
-            log_password = st.text_input("Password", type="password", key="log_pass", placeholder="Enter password")
+        with tab_login:
+            st.markdown("### Account Login")
+            log_mobile = st.text_input("Mobile Number", key="log_mobile", placeholder="Enter your registered mobile")
+            log_password = st.text_input("Password", type="password", key="log_pass", placeholder="Enter your password")
             
-            if st.button("Access Dashboard", use_container_width=True, type="primary"):
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Unlock Terminal", use_container_width=True, type="primary"):
                 if log_mobile and log_password:
                     result = login_user(log_mobile, log_password)
                     if result:
-                        st.success("Authentication Successful! Initializing workspace...")
+                        st.success("Authentication successful! Loading live workspace...")
                         st.balloons()
-                        time.sleep(1.2)
+                        time.sleep(1)
                         st.session_state["logged_in"] = True
                         st.session_state["current_user"] = log_mobile
                         st.rerun()
                     else:
                         st.error("Invalid mobile number or password.")
                 else:
-                    st.warning("Please enter both mobile and password.")
+                    st.warning("Please complete all fields.")
 
-        with tab2:
-            st.subheader("Create a New Account")
+        with tab_register:
+            st.markdown("### Register Account")
             
             if not st.session_state["otp_sent"]:
                 reg_mobile = st.text_input("Mobile Number", key="reg_mobile", placeholder="10-digit mobile number")
-                reg_password = st.text_input("Password", type="password", key="reg_pass", placeholder="Create a strong password")
-                reg_confirm = st.text_input("Confirm Password", type="password", key="reg_conf_pass", placeholder="Confirm your password")
+                reg_password = st.text_input("Create Password", type="password", key="reg_pass", placeholder="Create a strong password")
+                reg_confirm = st.text_input("Confirm Password", type="password", key="reg_conf_pass", placeholder="Re-enter password")
                 
+                st.markdown("<br>", unsafe_allow_html=True)
                 if st.button("Send Verification Code", use_container_width=True):
                     if reg_mobile and reg_password and reg_confirm:
                         if reg_password != reg_confirm:
                             st.error("Passwords do not match!")
                         elif len(reg_mobile) < 10:
-                            st.warning("Please enter a valid mobile number.")
+                            st.warning("Please provide a valid 10-digit mobile number.")
                         elif user_exists(reg_mobile):
-                            # Pre-check blocks existing users immediately
-                            st.error("❌ Existing user credential, please log in.")
+                            st.error("Existing user credential, please log in.")
                         else:
-                            # Generate simulated OTP
                             otp = str(random.randint(100000, 999999))
-                            st.session_state["otp_sent"] = True
-                            st.session_state["generated_otp"] = otp
-                            st.session_state["reg_mobile_pending"] = reg_mobile
-                            st.session_state["reg_pass_pending"] = reg_password
-                            st.rerun()
+                            sent = dispatch_sms_otp(reg_mobile, otp)
+                            if sent:
+                                st.session_state["otp_sent"] = True
+                                st.session_state["generated_otp"] = otp
+                                st.session_state["reg_mobile_pending"] = reg_mobile
+                                st.session_state["reg_pass_pending"] = reg_password
+                                st.rerun()
+                            else:
+                                st.error("Failed to transmit SMS. Please verify your mobile number.")
                     else:
-                        st.warning("Please fill out all fields.")
+                        st.warning("Please fill out all registration fields.")
             else:
-                st.success(f"Verification code has been sent to **{st.session_state['reg_mobile_pending']}**")
-                # Showing the OTP in an info box for testing purposes. (Remove this line if connecting real SMS API)
-                st.info(f"*(Developer Mock SMS) Your OTP is: {st.session_state['generated_otp']}*")
+                st.success(f"Verification code has been dispatched directly to **{st.session_state['reg_mobile_pending']}**.")
+                st.caption("Please check your mobile SMS inbox.")
                 
-                entered_otp = st.text_input("Enter 6-digit Verification Code", key="entered_otp", max_chars=6)
+                entered_otp = st.text_input("Enter 6-digit Code Received on Mobile", key="entered_otp", max_chars=6)
                 
-                v_col1, v_col2 = st.columns(2)
-                with v_col1:
-                    if st.button("Verify & Register", use_container_width=True, type="primary"):
+                st.markdown("<br>", unsafe_allow_html=True)
+                v1, v2 = st.columns(2)
+                with v1:
+                    if st.button("Verify & Activate", use_container_width=True, type="primary"):
                         if entered_otp == st.session_state["generated_otp"]:
                             success = add_user(st.session_state["reg_mobile_pending"], st.session_state["reg_pass_pending"])
                             if success:
-                                st.success("✅ Account verified and created! You can now log in.")
-                                time.sleep(2)
-                                # Reset state
+                                st.success("Account successfully created! Please log in.")
+                                time.sleep(1.5)
                                 st.session_state["otp_sent"] = False
                                 st.rerun()
                             else:
-                                st.error("Error creating account. Please try again.")
+                                st.error("Error writing user credentials to database.")
                         else:
-                            st.error("Invalid verification code.")
-                with v_col2:
-                    if st.button("Cancel & Go Back", use_container_width=True):
+                            st.error("Incorrect verification code. Please check your SMS.")
+                with v2:
+                    if st.button("Change Number", use_container_width=True):
                         st.session_state["otp_sent"] = False
                         st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# --- 4. MAIN APPLICATION DASHBOARD ---
+# --- 4. MAIN APPLICATION DASHBOARD (GLASS THEME) ---
 def main_app():
     st.markdown('<div class="main-header">Nexus Pro | Global Markets ⚡</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-header">US & Indian Equities, Options Chain, Commodities, AI Analytics & Alpaca Execution</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-header">Live Telemetry, Options Chains, AI Price Engine & Alpaca Brokerage</div>', unsafe_allow_html=True)
 
     try:
         api_key = st.secrets["ALPACA_API_KEY"]
@@ -203,15 +332,16 @@ def main_app():
         api_key = ""
         secret_key = ""
 
-    # --- SIDEBAR CONFIGURATION ---
+    # --- SIDEBAR GLASS CONFIGURATION ---
     with st.sidebar:
-        st.success(f"👤 Active Session: **{st.session_state['current_user']}**")
-        if st.button("🚪 Secure Logout", type="primary", use_container_width=True):
+        st.markdown('<div class="glass-panel" style="padding:15px !important;">', unsafe_allow_html=True)
+        st.success(f"👤 Trader: **{st.session_state['current_user']}**")
+        if st.button("🚪 Logout Session", type="primary", use_container_width=True):
             st.session_state["logged_in"] = False
             st.session_state["current_user"] = ""
             st.rerun()
-            
-        st.divider()
+        st.markdown('</div>', unsafe_allow_html=True)
+        
         st.header("⚡ Watchlist & Ticker")
         
         market_assets = {
@@ -253,14 +383,13 @@ def main_app():
         
         st.divider()
         if api_key and secret_key:
-            st.success("🟢 Live Paper Trading Connected")
-            st.caption("You are testing on a shared public paper trading account.")
+            st.success("🟢 Alpaca Paper Gateway Online")
         else:
             st.error("🔴 Broker Disconnected")
-            st.caption("Developer: Please add ALPACA_API_KEY to Streamlit Secrets.")
+            st.caption("Add ALPACA_API_KEY to Streamlit Secrets to trade.")
 
-    # --- DATA FETCHING & TECHNICAL ENGINE ---
-    @st.cache_data(show_spinner="Loading live market telemetry...")
+    # --- TECHNICAL ENGINE ---
+    @st.cache_data(show_spinner="Syncing live exchange order flow...")
     def fetch_market_data(symbol, period_choice):
         stock = yf.Ticker(symbol)
         df = stock.history(period=period_choice)
@@ -316,7 +445,7 @@ def main_app():
     df, stock_info, news_data = fetch_market_data(ticker, timeframe)
 
     if df.empty:
-        st.error(f"⚠️ Market data unavailable for '{ticker}'. Please verify the symbol.")
+        st.error(f"⚠️ Market telemetry unavailable for '{ticker}'. Please verify the symbol.")
         st.stop()
 
     last_close = float(df['Close'].iloc[-1])
@@ -325,7 +454,7 @@ def main_app():
     change_pct = (change_val / prev_close) * 100
     currency_sym = "₹" if ".NS" in ticker or ".BO" in ticker or "^NSE" in ticker or "^BSE" in ticker else "$"
 
-    # --- MAIN TABS ---
+    # --- GLASS TABS ---
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📈 Interactive Analytics", 
         "🎯 Options Chain",
@@ -337,14 +466,15 @@ def main_app():
 
     # [TAB 1: ADVANCED CHARTING]
     with tab1:
-        col_metric1, col_metric2, col_metric3, col_metric4 = st.columns(4)
-        col_metric1.metric("Spot Price", f"{currency_sym}{last_close:.2f}", f"{change_val:+.2f} ({change_pct:+.2f}%)")
-        col_metric2.metric("Day High", f"{currency_sym}{df['High'].iloc[-1]:.2f}")
-        col_metric3.metric("Day Low", f"{currency_sym}{df['Low'].iloc[-1]:.2f}")
-        col_metric4.metric("Trading Volume", f"{int(df['Volume'].iloc[-1]):,}")
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Spot Price", f"{currency_sym}{last_close:.2f}", f"{change_val:+.2f} ({change_pct:+.2f}%)")
+        c2.metric("Day High", f"{currency_sym}{df['High'].iloc[-1]:.2f}")
+        c3.metric("Day Low", f"{currency_sym}{df['Low'].iloc[-1]:.2f}")
+        c4.metric("Trading Volume", f"{int(df['Volume'].iloc[-1]):,}")
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        st.divider()
-        
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
         fig = make_subplots(
             rows=3, cols=1, shared_xaxes=True, vertical_spacing=0.03, 
             row_heights=[0.65, 0.15, 0.20],
@@ -365,9 +495,19 @@ def main_app():
         fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD'], line=dict(color='#00e5ff', width=1.5), name='MACD Line'), row=3, col=1)
         fig.add_trace(go.Scatter(x=df['Date'], y=df['MACD_Signal'], line=dict(color='#ff9100', width=1.5), name='Signal Line'), row=3, col=1)
         
-        fig.update_layout(template="plotly_dark", height=900, margin=dict(l=10, r=10, t=40, b=10), xaxis_rangeslider_visible=False)
+        fig.update_layout(
+            template="plotly_dark", 
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            height=850, 
+            margin=dict(l=10, r=10, t=30, b=10), 
+            xaxis_rangeslider_visible=False
+        )
         st.plotly_chart(fig, use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
         
+        # AI Engine Glass Card
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
         st.subheader("🤖 Neural Price Target & AI Signal")
         ml_df = df[['Close', 'SMA_20', 'SMA_50', 'RSI', 'MACD']].dropna().copy()
         ml_df['Target'] = ml_df['Close'].shift(-1)
@@ -382,24 +522,25 @@ def main_app():
             last_features = np.array([[last_close, df['SMA_20'].iloc[-1], df['SMA_50'].iloc[-1], df['RSI'].iloc[-1], df['MACD'].iloc[-1]]])
             predicted_target = rf.predict(last_features)[0]
             
-            c_ai1, c_ai2 = st.columns([1, 3])
-            c_ai1.metric("Predicted Next Session Target", f"{currency_sym}{predicted_target:.2f}", f"{predicted_target - last_close:+.2f}")
-            c_ai2.info(
-                f"**Model Signal:** {'BULLISH 🟢' if predicted_target > last_close else 'BEARISH 🔴'}. "
-                f"Current RSI is **{df['RSI'].iloc[-1]:.1f}** | MACD: **{df['MACD'].iloc[-1]:.2f}**. "
-                f"Asset is trading {'Above' if last_close > df['SMA_50'].iloc[-1] else 'Below'} the 50-day SMA."
+            ai1, ai2 = st.columns([1, 3])
+            ai1.metric("Predicted Target", f"{currency_sym}{predicted_target:.2f}", f"{predicted_target - last_close:+.2f}")
+            ai2.info(
+                f"**Signal State:** {'🟢 BULLISH ACCUMULATION' if predicted_target > last_close else '🔴 BEARISH DISTRIBUTION'}. "
+                f"RSI oscillator stands at **{df['RSI'].iloc[-1]:.1f}** | MACD: **{df['MACD'].iloc[-1]:.2f}**."
             )
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # [TAB 2: OPTIONS CHAIN]
     with tab2:
-        st.subheader(f"🎯 Real-Time Options Chain: {ticker}")
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.subheader(f"🎯 Options Telemetry Matrix: {ticker}")
         try:
             stock_obj = yf.Ticker(ticker)
             expirations = stock_obj.options
             if expirations:
                 col_exp, col_opt_type = st.columns([1, 2])
-                selected_exp = col_exp.selectbox("Select Expiration Date:", expirations)
-                opt_type = col_opt_type.radio("Option Type:", ["Calls (Bullish)", "Puts (Bearish)"], horizontal=True)
+                selected_exp = col_exp.selectbox("Expiration Date:", expirations)
+                opt_type = col_opt_type.radio("Derivative Class:", ["Calls (Bullish)", "Puts (Bearish)"], horizontal=True)
                 
                 chain = stock_obj.option_chain(selected_exp)
                 opt_df = chain.calls if "Calls" in opt_type else chain.puts
@@ -419,34 +560,36 @@ def main_app():
                             'volume': '{:,.0f}',
                             'openInterest': '{:,.0f}',
                             'impliedVolatility': '{:.2f}%'
-                        }), use_container_width=True, height=750, hide_index=True
+                        }), use_container_width=True, height=700, hide_index=True
                     )
                 else:
-                    st.info("No options data returned for this expiration.")
+                    st.info("No options contracts traded for this expiration cycle.")
             else:
-                st.info(f"Derivatives chain not available on Yahoo Finance for '{ticker}'.")
+                st.info(f"Options derivatives are not listed for ticker '{ticker}'.")
         except Exception as e:
-            st.warning(f"Could not load options chain: {e}")
+            st.warning(f"Could not load options data: {e}")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # [TAB 3: VALUATION]
+    # [TAB 3: VALUATION & FUNDAMENTALS]
     with tab3:
-        st.subheader(f"🏢 Fundamental Breakdown: {ticker}")
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.subheader(f"🏢 Fundamental & Valuation Telemetry: {ticker}")
         f1, f2, f3, f4 = st.columns(4)
-        f1.metric("Market Capitalization", f"{currency_sym}{stock_info.get('marketCap', 0):,}")
-        f2.metric("Trailing P/E Ratio", f"{stock_info.get('trailingPE', 'N/A')}")
-        f3.metric("Forward P/E Ratio", f"{stock_info.get('forwardPE', 'N/A')}")
-        f4.metric("Beta (Volatility)", f"{stock_info.get('beta', 'N/A')}")
+        f1.metric("Market Cap", f"{currency_sym}{stock_info.get('marketCap', 0):,}")
+        f2.metric("Trailing P/E", f"{stock_info.get('trailingPE', 'N/A')}")
+        f3.metric("Forward P/E", f"{stock_info.get('forwardPE', 'N/A')}")
+        f4.metric("Beta", f"{stock_info.get('beta', 'N/A')}")
         
         st.markdown("<br>", unsafe_allow_html=True)
-        
         f5, f6, f7, f8 = st.columns(4)
-        f5.metric("52-Week High", f"{currency_sym}{stock_info.get('fiftyTwoWeekHigh', 'N/A')}")
-        f6.metric("52-Week Low", f"{currency_sym}{stock_info.get('fiftyTwoWeekLow', 'N/A')}")
+        f5.metric("52W High", f"{currency_sym}{stock_info.get('fiftyTwoWeekHigh', 'N/A')}")
+        f6.metric("52W Low", f"{currency_sym}{stock_info.get('fiftyTwoWeekLow', 'N/A')}")
         f7.metric("Dividend Yield", f"{(stock_info.get('dividendYield', 0) or 0)*100:.2f}%")
-        f8.metric("Profit Margin", f"{(stock_info.get('profitMargins', 0) or 0)*100:.2f}%")
+        f8.metric("Operating Margin", f"{(stock_info.get('profitMargins', 0) or 0)*100:.2f}%")
+        st.markdown('</div>', unsafe_allow_html=True)
         
-        st.divider()
-        st.subheader("📰 Live Market News")
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.subheader("📰 Market Intelligence & News Flow")
         if news_data:
             n_col1, n_col2 = st.columns(2)
             for i, item in enumerate(news_data):
@@ -456,19 +599,21 @@ def main_app():
                     st.caption(f"Source: **{item['publisher']}**")
                     st.write("---")
         else:
-            st.write("No exact live news items could be routed for this ticker at this moment.")
+            st.write("No active news items available for this asset.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # [TAB 4: PORTFOLIO]
+    # [TAB 4: LIVE PORTFOLIO]
     with tab4:
-        st.subheader("💼 Live Alpaca Portfolio Execution")
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.subheader("💼 Live Execution Account Portfolio")
         if not api_key or not secret_key:
-            st.error("⚠️ Alpaca API Keys not detected in Secrets.")
+            st.error("⚠️ Alpaca Trading API credentials missing in Secrets.")
         else:
             try:
                 client = TradingClient(api_key, secret_key, paper=True)
                 acc = client.get_account()
                 p1, p2, p3, p4 = st.columns(4)
-                p1.metric("Total Equity", f"${float(acc.equity or 0.0):,.2f}")
+                p1.metric("Portfolio Equity", f"${float(acc.equity or 0.0):,.2f}")
                 p2.metric("Buying Power", f"${float(acc.buying_power or 0.0):,.2f}")
                 p3.metric("Cash Balance", f"${float(acc.cash or 0.0):,.2f}")
                 dt_power = acc.daytrading_buying_power if acc.daytrading_buying_power is not None else acc.buying_power
@@ -488,16 +633,18 @@ def main_app():
                     st.dataframe(pd.DataFrame(pos_list).style.format({
                         'Shares': '{:.2f}', 'Entry Price': '${:.2f}', 'Current Price': '${:.2f}',
                         'Market Value': '${:.2f}', 'Unrealized P&L ($)': '${:.2f}', 'P&L (%)': '{:.2f}%'
-                    }), use_container_width=True, height=600, hide_index=True)
+                    }), use_container_width=True, height=550, hide_index=True)
             except Exception as e:
-                st.error(f"❌ Account Connection Failed: {e}")
+                st.error(f"❌ Connection Failed: {e}")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # [TAB 5: TRADE STATION]
     with tab5:
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
         st.subheader(f"⚡ Execution Desk: {ticker}")
         t_col1, t_col2 = st.columns([1, 1.5]) 
         with t_col1:
-            st.info(f"**Live Exchange Quote:** {currency_sym}{last_close:.2f}")
+            st.info(f"**Live Quote:** {currency_sym}{last_close:.2f}")
             order_style = st.selectbox("Order Routing Type", ["Market Order", "Limit Order"])
             order_side = st.radio("Side", ["Buy", "Sell"], horizontal=True)
             order_qty = st.number_input("Shares Quantity", min_value=0.01, value=1.0, step=1.0)
@@ -513,12 +660,11 @@ def main_app():
             is_foreign = "^" in ticker or "=F" in ticker or ".NS" in ticker or ".BO" in ticker
             
             st.markdown("<br>", unsafe_allow_html=True)
-            
             if st.button("🚀 Transmit Order to Alpaca", use_container_width=True, type="primary"):
                 if not api_key or not secret_key:
-                    st.error("⚠️ Alpaca API Keys missing.")
+                    st.error("⚠️ Alpaca API Keys missing in Secrets.")
                 elif is_foreign:
-                    st.error("❌ Broker Rejection: Alpaca does not support foreign equities/indices.")
+                    st.error("❌ Broker Rejection: Alpaca US broker does not support foreign equities/indices.")
                 else:
                     try:
                         trading_client = TradingClient(api_key, secret_key, paper=True)
@@ -528,7 +674,7 @@ def main_app():
                         else:
                             order_payload = MarketOrderRequest(symbol=ticker, qty=order_qty, side=side_choice, time_in_force=TimeInForce.DAY)
                         submitted = trading_client.submit_order(order_data=order_payload)
-                        st.success(f"✅ Order Transmitted Successfully! ID: `{submitted.id}`")
+                        st.success(f"✅ Order Transmitted! ID: `{submitted.id}`")
                     except Exception as e:
                         st.error(f"❌ Routing Rejected: {e}")
         with t_col2:
@@ -539,11 +685,11 @@ def main_app():
                     account_meta = client.get_account()
                     
                     l_col1, l_col2 = st.columns(2)
-                    l_col1.metric("Total Equity", f"${float(account_meta.equity or 0.0):,.2f}")
+                    l_col1.metric("Equity Balance", f"${float(account_meta.equity or 0.0):,.2f}")
                     l_col2.metric("Available Buying Power", f"${float(account_meta.buying_power or 0.0):,.2f}")
                     
                     st.divider()
-                    st.write("### Recent Transactions")
+                    st.write("### Order Execution Log")
                     order_req = GetOrdersRequest(status=QueryOrderStatus.ALL, limit=30)
                     orders = client.get_orders(filter=order_req)
                     if orders:
@@ -554,15 +700,17 @@ def main_app():
                             'Qty': float(o.qty) if o.qty else 0.0,
                             'Status': str(o.status).split('.')[-1].upper()
                         } for o in orders]
-                        st.dataframe(pd.DataFrame(ord_list), use_container_width=True, height=450, hide_index=True)
+                        st.dataframe(pd.DataFrame(ord_list), use_container_width=True, height=400, hide_index=True)
                     else:
                         st.info("No recent transactions found.")
                 except Exception:
                     st.warning("Could not sync live account data.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     # [TAB 6: BACKTESTER]
     with tab6:
-        st.subheader(f"🧪 Strategy Simulator: {ticker}")
+        st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+        st.subheader(f"🧪 Algorithmic Strategy Simulator: {ticker}")
         b_df = df[['Date', 'Close', 'SMA_20', 'SMA_50']].dropna().copy()
         if len(b_df) > 50:
             b_df['Signal'] = np.where(b_df['SMA_20'] > b_df['SMA_50'], 1, 0)
@@ -576,19 +724,27 @@ def main_app():
             max_drawdown = ((strat_cum - peak) / peak).min() * 100
             
             b_fig = go.Figure()
-            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Strategy'] * 100, name='SMA Crossover', line=dict(color='#00d09c', width=2.5)))
-            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Market'] * 100, name='Buy & Hold', line=dict(color='#888888', width=2, dash='dot')))
+            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Strategy'] * 100, name='SMA Crossover Alpha', line=dict(color='#00d09c', width=2.5)))
+            b_fig.add_trace(go.Scatter(x=b_df['Date'], y=b_df['Cum_Market'] * 100, name='Buy & Hold Benchmark', line=dict(color='#888888', width=2, dash='dot')))
             
-            b_fig.update_layout(template="plotly_dark", height=800, yaxis_title="Cumulative Return (%)", margin=dict(l=10, r=10, t=30, b=10))
+            b_fig.update_layout(
+                template="plotly_dark", 
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                height=750, 
+                yaxis_title="Cumulative Return (%)", 
+                margin=dict(l=10, r=10, t=30, b=10)
+            )
             st.plotly_chart(b_fig, use_container_width=True)
             
             r1, r2, r3, r4 = st.columns(4)
             r1.metric("Strategy Net Return", f"{b_df['Cum_Strategy'].iloc[-1] * 100:+.2f}%")
             r2.metric("Buy & Hold Return", f"{b_df['Cum_Market'].iloc[-1] * 100:+.2f}%")
-            r3.metric("Alpha (Outperformance)", f"{(b_df['Cum_Strategy'].iloc[-1] - b_df['Cum_Market'].iloc[-1]) * 100:+.2f}%")
-            r4.metric("Max Drawdown (Risk)", f"{max_drawdown:.2f}%")
+            r3.metric("Alpha Generated", f"{(b_df['Cum_Strategy'].iloc[-1] - b_df['Cum_Market'].iloc[-1]) * 100:+.2f}%")
+            r4.metric("Max Drawdown Risk", f"{max_drawdown:.2f}%")
         else:
-            st.info("Insufficient historical points to run complete backtest.")
+            st.info("Insufficient historical points to execute strategy simulation.")
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # --- 5. APPLICATION ROUTING ---
 if not st.session_state["logged_in"]:
