@@ -122,7 +122,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE & PUSHBULLET API GATEWAY ---
+# --- 2. DATABASE & TWILIO API GATEWAY ---
 def init_db():
     conn = sqlite3.connect('nexus_users.db')
     c = conn.cursor()
@@ -162,33 +162,40 @@ def login_user(mobile, password):
 
 def dispatch_sms_otp(mobile_number, otp_code):
     """
-    Dispatches OTP via Pushbullet API in real-time.
-    Bypasses SMS networks for free local testing.
+    Dispatches OTP via Twilio API in real-time.
     """
-    pb_api_key = "o.BObFTinIXkLQlNWW2dScRLBMozLoPnWh"
+    # 1. Paste your Account SID and Auth Token inside the quotes below
+    account_sid = "PASTE_YOUR_ACCOUNT_SID_HERE"
+    auth_token = "PASTE_YOUR_AUTH_TOKEN_HERE"
     
-    url = "https://api.pushbullet.com/v2/pushes"
-    headers = {
-        "Access-Token": pb_api_key,
-        "Content-Type": "application/json"
-    }
+    # Your Twilio phone number
+    twilio_number = "+17372508034" 
     
+    # Format the user's mobile number with the +91 country code
+    clean_number = "".join(filter(str.isdigit, str(mobile_number)))
+    target_number = f"+91{clean_number}" if len(clean_number) == 10 else f"+{clean_number}"
+    
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
+    
+    # The message payload
     data = {
-        "type": "note",
-        "title": "Nexus Pro OTP",
-        "body": f"Registration attempt for: {mobile_number}\nYour verification code is: {otp_code}\nDo not share this code."
+        "From": twilio_number,
+        "To": target_number,
+        "Body": f"Your Nexus Pro verification code is: {otp_code}. Do not share this."
     }
     
     try:
-        res = requests.post(url, json=data, headers=headers, timeout=10)
-        if res.status_code == 200:
+        # Send the request to Twilio using Basic Auth
+        res = requests.post(url, data=data, auth=(account_sid, auth_token), timeout=10)
+        
+        if res.status_code in [200, 201]:
             return True
         else:
-            error_msg = res.json().get('error', {}).get('message', 'Unknown API Error')
-            st.error(f"Pushbullet API Error: {error_msg}")
+            error_msg = res.json().get('message', 'Unknown Twilio API Error')
+            st.error(f"Twilio API Error: {error_msg}")
             return False
     except Exception as e:
-        st.error(f"Pushbullet Connection Failed: {e}")
+        st.error(f"Twilio Connection Failed: {e}")
         return False
 
 init_db()
@@ -265,11 +272,11 @@ def auth_screen():
                                 st.session_state["reg_pass_pending"] = reg_password
                                 st.rerun()
                             else:
-                                st.error("Failed to transmit via Pushbullet.")
+                                st.error("Failed to transmit SMS. Please check your Twilio settings.")
                     else:
                         st.warning("Please fill out all registration fields.")
             else:
-                st.success(f"Verification code has been pushed to your device for **{st.session_state['reg_mobile_pending']}**.")
+                st.success(f"SMS Verification code has been dispatched to **{st.session_state['reg_mobile_pending']}**.")
                 
                 entered_otp = st.text_input("Enter 6-digit Code Received", key="entered_otp", max_chars=6)
                 
@@ -287,7 +294,7 @@ def auth_screen():
                             else:
                                 st.error("Error writing user credentials to database.")
                         else:
-                            st.error("Incorrect verification code. Please check your notification.")
+                            st.error("Incorrect verification code. Please check your SMS.")
                 with v2:
                     if st.button("Change Number", use_container_width=True):
                         st.session_state["otp_sent"] = False
