@@ -173,46 +173,35 @@ def login_user(mobile, password):
 
 def dispatch_sms_otp(mobile_number, otp_code):
     """
-    Directly dispatches SMS OTP to the user's phone number.
-    Connects to Fast2SMS or Twilio via Streamlit Secrets.
+    Dispatches OTP via Fast2SMS API in real-time.
     """
+    # Ensure number is 10 digits clean
     clean_number = "".join(filter(str.isdigit, str(mobile_number)))
+    if len(clean_number) > 10:
+        clean_number = clean_number[-10:]
+        
+    fast2sms_api_key = "3ejFKAYCvhkGHubUr5fD7cE8IsRBLQdJaP1t69lZVOXiwx2SygMghCGvd5RI6z2TD738waUqmfAEukcN"
     
-    # 1. Fast2SMS Integration (if key exists)
-    if "FAST2SMS_API_KEY" in st.secrets:
-        try:
-            url = "https://www.fast2sms.com/dev/bulkV2"
-            payload = f"variables_values={otp_code}&route=otp&numbers={clean_number}"
-            headers = {
-                'authorization': st.secrets["FAST2SMS_API_KEY"],
-                'Content-Type': "application/x-www-form-urlencoded"
-            }
-            res = requests.post(url, data=payload, headers=headers, timeout=10)
-            return res.status_code == 200
-        except Exception:
+    url = "https://www.fast2sms.com/dev/bulkV2"
+    payload = f"variables_values={otp_code}&route=otp&numbers={clean_number}"
+    headers = {
+        'authorization': fast2sms_api_key,
+        'Content-Type': "application/x-www-form-urlencoded"
+    }
+    
+    try:
+        res = requests.post(url, data=payload, headers=headers, timeout=10)
+        response_data = res.json()
+        
+        if res.status_code == 200 and response_data.get('return') == True:
+            return True
+        else:
+            error_msg = response_data.get('message', 'Unknown API Error')
+            st.error(f"Fast2SMS API Error: {error_msg}")
             return False
-
-    # 2. Twilio Integration (if keys exist)
-    elif "TWILIO_ACCOUNT_SID" in st.secrets and "TWILIO_AUTH_TOKEN" in st.secrets:
-        try:
-            sid = st.secrets["TWILIO_ACCOUNT_SID"]
-            token = st.secrets["TWILIO_AUTH_TOKEN"]
-            from_number = st.secrets["TWILIO_PHONE_NUMBER"]
-            target_number = f"+91{clean_number}" if len(clean_number) == 10 else f"+{clean_number}"
-            
-            url = f"https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
-            data = {
-                "From": from_number,
-                "To": target_number,
-                "Body": f"Your Nexus Pro security verification code is: {otp_code}. Do not share this with anyone."
-            }
-            res = requests.post(url, data=data, auth=(sid, token), timeout=10)
-            return res.status_code in [200, 201]
-        except Exception:
-            return False
-
-    # Fallback to simulated delivery if no SMS keys are configured in secrets
-    return True
+    except Exception as e:
+        st.error(f"Fast2SMS Connection Failed: {e}")
+        return False
 
 init_db()
 
@@ -289,14 +278,14 @@ def auth_screen():
                                 st.session_state["reg_pass_pending"] = reg_password
                                 st.rerun()
                             else:
-                                st.error("Failed to transmit SMS. Please verify your mobile number.")
+                                st.error("Failed to transmit SMS. Please verify your Fast2SMS setup.")
                     else:
                         st.warning("Please fill out all registration fields.")
             else:
-                st.success(f"Verification code has been dispatched directly to **{st.session_state['reg_mobile_pending']}**.")
+                st.success(f"SMS Verification code has been dispatched to **{st.session_state['reg_mobile_pending']}**.")
                 st.caption("Please check your mobile SMS inbox.")
                 
-                entered_otp = st.text_input("Enter 6-digit Code Received on Mobile", key="entered_otp", max_chars=6)
+                entered_otp = st.text_input("Enter 6-digit Code Received", key="entered_otp", max_chars=6)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 v1, v2 = st.columns(2)
@@ -326,8 +315,8 @@ def main_app():
     st.markdown('<div class="sub-header">Live Telemetry, Options Chains, AI Price Engine & Alpaca Brokerage</div>', unsafe_allow_html=True)
 
     try:
-        api_key = st.secrets["ALPACA_API_KEY"]
-        secret_key = st.secrets["ALPACA_SECRET_KEY"]
+        api_key = st.secrets.get("ALPACA_API_KEY", "")
+        secret_key = st.secrets.get("ALPACA_SECRET_KEY", "")
     except Exception:
         api_key = ""
         secret_key = ""
@@ -506,7 +495,6 @@ def main_app():
         st.plotly_chart(fig, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
         
-        # AI Engine Glass Card
         st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
         st.subheader("🤖 Neural Price Target & AI Signal")
         ml_df = df[['Close', 'SMA_20', 'SMA_50', 'RSI', 'MACD']].dropna().copy()
