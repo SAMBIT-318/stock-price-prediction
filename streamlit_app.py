@@ -9,7 +9,6 @@ from datetime import date, timedelta
 import sqlite3
 import hashlib
 import time
-import random
 import requests
 
 # Import Alpaca Components
@@ -122,7 +121,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE & TWILIO API GATEWAY ---
+# --- 2. DATABASE CONFIGURATION ---
 def init_db():
     conn = sqlite3.connect('nexus_users.db')
     c = conn.cursor()
@@ -160,44 +159,6 @@ def login_user(mobile, password):
     conn.close()
     return data
 
-def dispatch_sms_otp(mobile_number, otp_code):
-    """
-    Dispatches OTP via Twilio API in real-time.
-    """
-    # 1. Paste your Account SID and Auth Token inside the quotes below
-    account_sid = "SKe8ac5dca9b689f80bbae60f8b61bc86c"
-    auth_token = "etb36iRaapb4Ic3WRE5w4C9HtFTl9SmW"
-    
-    # Your Twilio phone number
-    twilio_number = "+17372508034" 
-    
-    # Format the user's mobile number with the +91 country code
-    clean_number = "".join(filter(str.isdigit, str(mobile_number)))
-    target_number = f"+91{clean_number}" if len(clean_number) == 10 else f"+{clean_number}"
-    
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{account_sid}/Messages.json"
-    
-    # The message payload
-    data = {
-        "From": twilio_number,
-        "To": target_number,
-        "Body": f"Your Nexus Pro verification code is: {otp_code}. Do not share this."
-    }
-    
-    try:
-        # Send the request to Twilio using Basic Auth
-        res = requests.post(url, data=data, auth=(account_sid, auth_token), timeout=10)
-        
-        if res.status_code in [200, 201]:
-            return True
-        else:
-            error_msg = res.json().get('message', 'Unknown Twilio API Error')
-            st.error(f"Twilio API Error: {error_msg}")
-            return False
-    except Exception as e:
-        st.error(f"Twilio Connection Failed: {e}")
-        return False
-
 init_db()
 
 # Session State Initialization
@@ -205,16 +166,8 @@ if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "current_user" not in st.session_state:
     st.session_state["current_user"] = ""
-if "otp_sent" not in st.session_state:
-    st.session_state["otp_sent"] = False
-if "generated_otp" not in st.session_state:
-    st.session_state["generated_otp"] = ""
-if "reg_mobile_pending" not in st.session_state:
-    st.session_state["reg_mobile_pending"] = ""
-if "reg_pass_pending" not in st.session_state:
-    st.session_state["reg_pass_pending"] = ""
 
-# --- 3. AUTHENTICATION UI ---
+# --- 3. AUTHENTICATION UI (DIRECT REGISTRATION & LOGIN) ---
 def auth_screen():
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown('<div align="center"><h1 class="main-header">Nexus Pro Trading</h1></div>', unsafe_allow_html=True)
@@ -247,58 +200,29 @@ def auth_screen():
 
         with tab_register:
             st.markdown("<br>### Register Account", unsafe_allow_html=True)
+            reg_mobile = st.text_input("Mobile Number", key="reg_mobile", placeholder="10-digit mobile number")
+            reg_password = st.text_input("Create Password", type="password", key="reg_pass", placeholder="Create a strong password")
+            reg_confirm = st.text_input("Confirm Password", type="password", key="reg_conf_pass", placeholder="Re-enter password")
             
-            if not st.session_state["otp_sent"]:
-                reg_mobile = st.text_input("Mobile Number", key="reg_mobile", placeholder="10-digit mobile number")
-                reg_password = st.text_input("Create Password", type="password", key="reg_pass", placeholder="Create a strong password")
-                reg_confirm = st.text_input("Confirm Password", type="password", key="reg_conf_pass", placeholder="Re-enter password")
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("Send Verification Code", use_container_width=True):
-                    if reg_mobile and reg_password and reg_confirm:
-                        if reg_password != reg_confirm:
-                            st.error("Passwords do not match!")
-                        elif len(reg_mobile) < 10:
-                            st.warning("Please provide a valid 10-digit mobile number.")
-                        elif user_exists(reg_mobile):
-                            st.error("Existing user credential, please log in.")
-                        else:
-                            otp = str(random.randint(100000, 999999))
-                            sent = dispatch_sms_otp(reg_mobile, otp)
-                            if sent:
-                                st.session_state["otp_sent"] = True
-                                st.session_state["generated_otp"] = otp
-                                st.session_state["reg_mobile_pending"] = reg_mobile
-                                st.session_state["reg_pass_pending"] = reg_password
-                                st.rerun()
-                            else:
-                                st.error("Failed to transmit SMS. Please check your Twilio settings.")
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Create Account Directly", use_container_width=True, type="primary"):
+                if reg_mobile and reg_password and reg_confirm:
+                    if reg_password != reg_confirm:
+                        st.error("Passwords do not match!")
+                    elif len(reg_mobile) < 10:
+                        st.warning("Please provide a valid 10-digit mobile number.")
+                    elif user_exists(reg_mobile):
+                        st.error("User with this mobile number already exists. Please log in.")
                     else:
-                        st.warning("Please fill out all registration fields.")
-            else:
-                st.success(f"SMS Verification code has been dispatched to **{st.session_state['reg_mobile_pending']}**.")
-                
-                entered_otp = st.text_input("Enter 6-digit Code Received", key="entered_otp", max_chars=6)
-                
-                st.markdown("<br>", unsafe_allow_html=True)
-                v1, v2 = st.columns(2)
-                with v1:
-                    if st.button("Verify & Activate", use_container_width=True, type="primary"):
-                        if entered_otp == st.session_state["generated_otp"]:
-                            success = add_user(st.session_state["reg_mobile_pending"], st.session_state["reg_pass_pending"])
-                            if success:
-                                st.success("Account successfully created! Please log in.")
-                                time.sleep(1.5)
-                                st.session_state["otp_sent"] = False
-                                st.rerun()
-                            else:
-                                st.error("Error writing user credentials to database.")
+                        success = add_user(reg_mobile, reg_password)
+                        if success:
+                            st.success("Account successfully created! You can now log in.")
+                            time.sleep(1.5)
+                            st.rerun()
                         else:
-                            st.error("Incorrect verification code. Please check your SMS.")
-                with v2:
-                    if st.button("Change Number", use_container_width=True):
-                        st.session_state["otp_sent"] = False
-                        st.rerun()
+                            st.error("Database error occurred while creating account.")
+                else:
+                    st.warning("Please fill out all registration fields.")
         
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -492,7 +416,6 @@ def main_app():
             margin=dict(l=10, r=10, t=30, b=10), 
             xaxis_rangeslider_visible=False
         )
-        # Update grid colors for Moomoo look
         fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#2b3139')
         fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#2b3139')
         
