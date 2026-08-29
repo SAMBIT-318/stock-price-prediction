@@ -51,7 +51,7 @@ st.markdown("""
         margin-bottom: 25px;
     }
 
-    /* Moomoo Solid Panels (Replaces Glass) */
+    /* Moomoo Solid Panels */
     .moomoo-panel {
         background-color: #1e222d !important;
         border: 1px solid #2b3139 !important;
@@ -122,7 +122,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. DATABASE & SMS GATEWAY ---
+# --- 2. DATABASE & PUSHBULLET API GATEWAY ---
 def init_db():
     conn = sqlite3.connect('nexus_users.db')
     c = conn.cursor()
@@ -162,39 +162,33 @@ def login_user(mobile, password):
 
 def dispatch_sms_otp(mobile_number, otp_code):
     """
-    Dispatches OTP via Fast2SMS Quick SMS API (route=q) in real-time.
-    This bypasses the strict website verification required by the 'otp' route.
+    Dispatches OTP via Pushbullet API in real-time.
+    Bypasses SMS networks for free local testing.
     """
-    clean_number = "".join(filter(str.isdigit, str(mobile_number)))
-    if len(clean_number) > 10:
-        clean_number = clean_number[-10:]
-        
-    fast2sms_api_key = "3ejFKAYCvhkGHubUr5fD7cE8IsRBLQdJaP1t69lZVOXiwx2SygMghCGvd5RI6z2TD738waUqmfAEukcN"
+    pb_api_key = "o.BObFTinIXkLQlNWW2dScRLBMozLoPnWh"
     
-    url = "https://www.fast2sms.com/dev/bulkV2"
-    
-    payload = {
-        "message": f"Your Nexus Pro verification code is {otp_code}. Do not share this with anyone.",
-        "route": "q",
-        "numbers": clean_number
+    url = "https://api.pushbullet.com/v2/pushes"
+    headers = {
+        "Access-Token": pb_api_key,
+        "Content-Type": "application/json"
     }
     
-    headers = {
-        'authorization': fast2sms_api_key
+    data = {
+        "type": "note",
+        "title": "Nexus Pro OTP",
+        "body": f"Registration attempt for: {mobile_number}\nYour verification code is: {otp_code}\nDo not share this code."
     }
     
     try:
-        res = requests.post(url, data=payload, headers=headers, timeout=10)
-        response_data = res.json()
-        
-        if res.status_code == 200 and response_data.get('return') == True:
+        res = requests.post(url, json=data, headers=headers, timeout=10)
+        if res.status_code == 200:
             return True
         else:
-            error_msg = response_data.get('message', 'Unknown API Error')
-            st.error(f"Fast2SMS API Error: {error_msg}")
+            error_msg = res.json().get('error', {}).get('message', 'Unknown API Error')
+            st.error(f"Pushbullet API Error: {error_msg}")
             return False
     except Exception as e:
-        st.error(f"Fast2SMS Connection Failed: {e}")
+        st.error(f"Pushbullet Connection Failed: {e}")
         return False
 
 init_db()
@@ -271,11 +265,11 @@ def auth_screen():
                                 st.session_state["reg_pass_pending"] = reg_password
                                 st.rerun()
                             else:
-                                st.error("Failed to transmit SMS. Please verify your Fast2SMS setup.")
+                                st.error("Failed to transmit via Pushbullet.")
                     else:
                         st.warning("Please fill out all registration fields.")
             else:
-                st.success(f"SMS Verification code has been dispatched to **{st.session_state['reg_mobile_pending']}**.")
+                st.success(f"Verification code has been pushed to your device for **{st.session_state['reg_mobile_pending']}**.")
                 
                 entered_otp = st.text_input("Enter 6-digit Code Received", key="entered_otp", max_chars=6)
                 
@@ -293,7 +287,7 @@ def auth_screen():
                             else:
                                 st.error("Error writing user credentials to database.")
                         else:
-                            st.error("Incorrect verification code. Please check your SMS.")
+                            st.error("Incorrect verification code. Please check your notification.")
                 with v2:
                     if st.button("Change Number", use_container_width=True):
                         st.session_state["otp_sent"] = False
